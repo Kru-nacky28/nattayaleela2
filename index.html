@@ -1,0 +1,786 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>นาฏยลีลา — เกมฝึกนาฏยศัพท์และภาษาท่า</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+Thai:wght@500;700;900&family=Noto+Sans+Thai:wght@400;500;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.11.0/dist/tf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/pose-detection@2.1.3/dist/pose-detection.min.js"></script>
+<style>
+  :root{
+    --cream:#FBF5E9;
+    --ink:#2B2019;
+    --maroon:#7A1F2B;
+    --maroon-dark:#5A1620;
+    --gold:#C9A227;
+    --gold-light:#E4C766;
+    --teal:#0B5345;
+    --teal-light:#13735F;
+    --line:rgba(43,32,25,0.12);
+    --radius:18px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;background:var(--cream);color:var(--ink);font-family:'Noto Sans Thai',sans-serif;height:100%;overflow-x:hidden;}
+  h1,h2,h3,.display{font-family:'Noto Serif Thai',serif;}
+  .mono{font-family:'JetBrains Mono',monospace;}
+  button{font-family:inherit;cursor:pointer;border:none;}
+  .screen{display:none;min-height:100vh;flex-direction:column;align-items:center;padding:24px 16px 48px;}
+  .screen.active{display:flex;}
+
+  /* ---------- header / brand ---------- */
+  .brand{display:flex;align-items:center;gap:14px;margin-bottom:6px;}
+  .brand-mark{width:46px;height:46px;flex:none;}
+  .brand h1{font-size:clamp(28px,5vw,40px);font-weight:900;color:var(--maroon);margin:0;letter-spacing:.5px;}
+  .brand .sub{font-size:14px;color:var(--teal);font-weight:700;margin-top:-4px;}
+  .eyebrow{font-size:13px;letter-spacing:.14em;color:var(--gold-light);background:var(--maroon);
+    display:inline-block;padding:4px 12px;border-radius:999px;margin-bottom:14px;font-weight:700;}
+
+  /* ---------- kbach frame (signature element) ---------- */
+  .kbach-frame{position:relative;border-radius:var(--radius);padding:14px;background:linear-gradient(180deg,var(--maroon) 0%,var(--maroon-dark) 100%);
+    box-shadow:0 18px 40px -18px rgba(90,22,32,.55);}
+  .kbach-frame::before,.kbach-frame::after,.kbach-frame .c3,.kbach-frame .c4{
+    content:'';position:absolute;width:34px;height:34px;background:no-repeat center/contain;
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><path d='M2 98 C 2 40, 40 2, 98 2' fill='none' stroke='%23C9A227' stroke-width='7'/><path d='M2 98 C 30 98, 50 78, 50 50' fill='none' stroke='%23C9A227' stroke-width='4'/></svg>");
+    opacity:.9;
+  }
+  .kbach-frame::before{top:6px;left:6px;}
+  .kbach-frame::after{top:6px;right:6px;transform:scaleX(-1);}
+  .kbach-frame .c3{bottom:6px;left:6px;transform:scaleY(-1);}
+  .kbach-frame .c4{bottom:6px;right:6px;transform:scale(-1,-1);}
+
+  .stage-wrap{position:relative;width:min(92vw,560px);aspect-ratio:3/4;border-radius:12px;overflow:hidden;background:#1b1310;}
+  .zoom-wrap{position:absolute;inset:0;transition:transform .3s ease;transform-origin:center center;}
+  video,canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transform:scaleX(-1);}
+  canvas{pointer-events:none;}
+  /* focus presets: zoomed + panned so only the relevant body part fills the frame */
+  .zoom-wrap.zoom-hand{transform:scale(1.7) translateY(-16%);}
+  .zoom-wrap.zoom-foot{transform:scale(1.7) translateY(20%);}
+  .zoom-wrap.zoom-full{transform:scale(1) translateY(0);}
+  .focus-tag{position:absolute;top:10px;left:50%;transform:translateX(-50%);z-index:5;background:rgba(201,162,39,.92);
+    color:#2B2019;font-weight:700;font-size:12px;padding:4px 12px;border-radius:999px;display:none;}
+  .focus-tag.show{display:block;}
+
+  .hud{position:absolute;top:10px;left:10px;right:10px;display:flex;justify-content:space-between;align-items:flex-start;gap:8px;z-index:5;}
+  .pill{background:rgba(27,19,16,.72);color:var(--gold-light);padding:6px 12px;border-radius:999px;font-size:13px;font-weight:700;backdrop-filter:blur(3px);}
+  .pill.timer{font-family:'JetBrains Mono',monospace;font-size:16px;}
+  .pill.status-ok{background:rgba(19,115,95,.9);color:#fff;}
+  .pill.status-wait{background:rgba(90,22,32,.85);color:var(--gold-light);}
+
+  .pose-caption{position:absolute;bottom:10px;left:10px;right:10px;text-align:center;z-index:5;}
+  .pose-caption .name{display:inline-block;background:rgba(27,19,16,.78);color:#fff;font-family:'Noto Serif Thai',serif;
+    font-weight:700;font-size:20px;padding:6px 18px;border-radius:12px;}
+
+  /* ---------- buttons ---------- */
+  .btn{padding:14px 26px;border-radius:12px;font-weight:700;font-size:16px;transition:transform .12s ease;}
+  .btn:active{transform:scale(.97);}
+  .btn-primary{background:var(--maroon);color:var(--gold-light);}
+  .btn-primary:hover{background:var(--maroon-dark);}
+  .btn-teal{background:var(--teal);color:#fff;}
+  .btn-teal:hover{background:var(--teal-light);}
+  .btn-ghost{background:transparent;color:var(--maroon);border:2px solid var(--maroon);}
+  .btn-gold{background:var(--gold);color:var(--ink);}
+  .btn[disabled]{opacity:.4;cursor:not-allowed;}
+  .btn-row{display:flex;gap:12px;flex-wrap:wrap;justify-content:center;}
+  #save-hold-btn{touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;}
+
+  /* ---------- cards / lists ---------- */
+  .card{background:#fff;border:1px solid var(--line);border-radius:var(--radius);padding:20px;width:min(92vw,560px);}
+  .cat-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;width:min(92vw,640px);margin-top:18px;}
+  .cat-card{background:#fff;border:1px solid var(--line);border-radius:var(--radius);padding:18px;text-align:left;transition:.15s;}
+  .cat-card:hover{border-color:var(--gold);transform:translateY(-2px);}
+  .cat-card h3{margin:0 0 4px;color:var(--maroon);font-size:18px;}
+  .cat-card p{margin:0;font-size:13px;color:#6b5f54;}
+  .cat-card .count{display:inline-block;margin-top:10px;font-size:12px;background:var(--cream);color:var(--teal);
+    padding:2px 10px;border-radius:999px;font-weight:700;}
+
+  .list-row{display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px dashed var(--line);}
+  .list-row:last-child{border-bottom:none;}
+  .tag-done{color:var(--teal);font-weight:700;font-size:13px;}
+  .tag-missing{color:#a5433a;font-weight:700;font-size:13px;}
+
+  input[type=text],input[type=password]{width:100%;padding:12px 14px;border-radius:10px;border:1px solid var(--line);font-size:16px;font-family:inherit;}
+  label{font-size:13px;font-weight:700;color:var(--maroon);display:block;margin-bottom:6px;}
+  .field{width:min(92vw,420px);margin-bottom:16px;}
+
+  .slider-row{display:flex;align-items:center;gap:10px;width:min(92vw,420px);}
+  input[type=range]{flex:1;}
+
+  table{width:min(92vw,480px);border-collapse:collapse;}
+  th,td{text-align:left;padding:8px 10px;font-size:14px;}
+  tr:nth-child(odd) td{background:#fdf9f0;}
+  .rank1{color:var(--maroon);font-weight:900;}
+
+  .note{font-size:13px;color:#7a6c5d;max-width:min(92vw,480px);text-align:center;line-height:1.6;}
+  .back-link{align-self:flex-start;color:var(--teal);font-weight:700;font-size:14px;margin-bottom:10px;background:none;}
+  .top-bar{width:min(92vw,640px);display:flex;justify-content:space-between;align-items:center;}
+</style>
+</head>
+<body>
+
+<!-- ============ SCREEN: HOME ============ -->
+<div class="screen active" id="screen-home">
+  <div class="brand">
+    <svg class="brand-mark" viewBox="0 0 100 100"><circle cx="50" cy="50" r="46" fill="#7A1F2B"/><path d="M50 14 C30 14 18 32 18 50 C18 74 40 86 50 86 C60 86 82 74 82 50 C82 32 70 14 50 14 Z" fill="none" stroke="#C9A227" stroke-width="3"/><path d="M50 30 Q66 40 50 70 Q34 40 50 30 Z" fill="#C9A227"/></svg>
+    <div>
+      <h1>นาฏยลีลา</h1>
+      <div class="sub">เกมฝึกนาฏยศัพท์และภาษาท่า</div>
+    </div>
+  </div>
+  <div class="eyebrow">ยืนตรงหน้ากล้อง แล้วทำท่าให้ตรงกับเงาต้นแบบ</div>
+
+  <div class="card" style="margin-top:8px;">
+    <p style="margin-top:0;color:#6b5f54;font-size:14px;line-height:1.7;">
+      ระบบจะตรวจจับท่าทางของผู้เล่นผ่านกล้อง แล้วเทียบกับ "ท่าต้นแบบ" ที่ครูบันทึกไว้ล่วงหน้า
+      หากท่าต้นแบบของหมวดใดยังไม่ถูกบันทึก ให้ครูเข้าโหมด "ตั้งค่าท่าต้นแบบ" ก่อนเริ่มเล่น
+    </p>
+    <div class="btn-row" style="margin-top:14px;">
+      <button class="btn btn-primary" onclick="goTo('screen-name')">เข้าเล่น (นักเรียน)</button>
+      <button class="btn btn-ghost" onclick="goTo('screen-pin')">โหมดครู</button>
+    </div>
+  </div>
+
+  <button class="btn btn-gold" style="margin-top:16px;" onclick="renderLeaderboardHome()">🏆 ดูกระดานผู้ชนะ</button>
+  <div id="home-leaderboard" style="width:min(92vw,560px);margin-top:14px;"></div>
+
+  <p class="note" style="margin-top:22px;">
+    ต้องเปิดหน้านี้ผ่านลิงก์เว็บที่มี https:// (ไม่ใช่ไฟล์ในเครื่อง) และอนุญาตให้ใช้กล้อง เบราวเซอร์ที่แนะนำ: Chrome
+  </p>
+</div>
+
+<!-- ============ SCREEN: NAME ============ -->
+<div class="screen" id="screen-name">
+  <button class="back-link" onclick="goTo('screen-home')">‹ กลับ</button>
+  <h2 class="display" style="color:var(--maroon);">สวัสดีนักแสดง 🎭</h2>
+  <div class="field">
+    <label>ชื่อผู้เล่น (จะแสดงบนกระดานผู้ชนะ)</label>
+    <input type="text" id="player-name" placeholder="เช่น น้องข้าวปั้น" maxlength="20">
+  </div>
+  <button class="btn btn-primary" onclick="confirmName()">ต่อไป: เลือกหมวด</button>
+</div>
+
+<!-- ============ SCREEN: CATEGORY SELECT ============ -->
+<div class="screen" id="screen-category">
+  <div class="top-bar">
+    <button class="back-link" onclick="goTo('screen-name')">‹ กลับ</button>
+    <span class="mono" id="cat-player-tag" style="color:var(--teal);font-weight:700;"></span>
+  </div>
+  <h2 class="display" style="color:var(--maroon);margin-top:4px;">เลือกหมวดที่จะฝึก</h2>
+  <div class="cat-grid" id="cat-grid"></div>
+</div>
+
+<!-- ============ SCREEN: GAME ============ -->
+<div class="screen" id="screen-game">
+  <div class="kbach-frame">
+    <div class="c3"></div><div class="c4"></div>
+    <div class="stage-wrap" id="stage-wrap">
+      <div class="zoom-wrap zoom-full" id="zoom-wrap">
+        <video id="video" autoplay playsinline muted></video>
+        <canvas id="overlay"></canvas>
+      </div>
+      <span class="focus-tag" id="focus-tag">ซูมโฟกัสมือ/เท้า</span>
+      <div class="hud">
+        <span class="pill timer" id="hud-timer">00:00</span>
+        <span class="pill" id="hud-progress">0/0</span>
+        <span class="pill status-wait" id="hud-status">จับตำแหน่ง...</span>
+      </div>
+      <div class="pose-caption"><span class="name" id="hud-pose-name">—</span></div>
+    </div>
+  </div>
+  <div class="btn-row" style="margin-top:18px;">
+    <button class="btn btn-ghost" onclick="goTo('screen-category')">ออกจากเกม</button>
+  </div>
+  <p class="note" id="game-hint" style="margin-top:14px;">กำลังเปิดกล้อง...</p>
+</div>
+
+<!-- ============ SCREEN: RESULT ============ -->
+<div class="screen" id="screen-result">
+  <h2 class="display" style="color:var(--teal);">🎉 ผ่านหมวดนี้แล้ว!</h2>
+  <div class="card" style="text-align:center;">
+    <p style="font-size:15px;color:#6b5f54;">ผู้เล่น <b id="res-name"></b></p>
+    <p style="font-size:15px;color:#6b5f54;">หมวด <b id="res-cat"></b></p>
+    <div class="mono" style="font-size:42px;color:var(--maroon);font-weight:700;margin:10px 0;" id="res-time">00:00.0</div>
+    <p style="font-size:14px;color:var(--teal);font-weight:700;" id="res-rank"></p>
+  </div>
+  <div class="btn-row" style="margin-top:18px;">
+    <button class="btn btn-primary" onclick="goTo('screen-category')">ฝึกหมวดอื่นต่อ</button>
+    <button class="btn btn-gold" onclick="goTo('screen-home')">กลับหน้าแรก</button>
+  </div>
+</div>
+
+<!-- ============ SCREEN: TEACHER PIN ============ -->
+<div class="screen" id="screen-pin">
+  <button class="back-link" onclick="goTo('screen-home')">‹ กลับ</button>
+  <h2 class="display" style="color:var(--maroon);">โหมดครู</h2>
+  <div class="field">
+    <label>รหัสผ่านครู (ตั้งไว้ในไฟล์: แก้ได้ที่ตัวแปร TEACHER_PIN)</label>
+    <input type="password" id="pin-input" placeholder="กรอกรหัส 4 หลัก" maxlength="8">
+  </div>
+  <button class="btn btn-primary" onclick="checkPin()">เข้าสู่ระบบ</button>
+  <p class="note" id="pin-error" style="color:#a5433a;"></p>
+</div>
+
+<!-- ============ SCREEN: TEACHER MENU ============ -->
+<div class="screen" id="screen-teacher">
+  <div class="top-bar">
+    <button class="back-link" onclick="goTo('screen-home')">‹ ออกจากโหมดครู</button>
+  </div>
+  <h2 class="display" style="color:var(--maroon);">ท่าต้นแบบทั้งหมด</h2>
+  <p class="note">กดที่ท่าเพื่อบันทึกท่าต้นแบบใหม่ — ท่านิ่งก็กดค้างสั้นๆ ท่าที่ต้องเคลื่อนไหว (เช่น ซอยเท้า เดิน) ให้กดค้างไว้แล้วทำท่าเคลื่อนไหวให้ครบก่อนปล่อยนิ้ว ระบบจะจำทั้งกระบวนท่า ไม่ใช่แค่ท่าสุดท้าย</p>
+  <div class="slider-row" style="margin:10px 0 4px;">
+    <label style="margin:0;white-space:nowrap;">ความเข้มงวด</label>
+    <input type="range" id="tolerance-slider" min="0.15" max="0.6" step="0.01">
+    <span class="mono" id="tolerance-value">0.35</span>
+  </div>
+  <p class="note" style="margin-top:0;">ค่ายิ่งน้อย = ต้องทำท่าเหมือนต้นแบบมากขึ้น (แม่นกว่า แต่ยากขึ้น)</p>
+  <div class="card" style="margin-top:14px;max-height:44vh;overflow:auto;">
+    <div id="teacher-list"></div>
+  </div>
+</div>
+
+<!-- ============ SCREEN: TEACHER CALIBRATE ============ -->
+<div class="screen" id="screen-calibrate">
+  <div class="kbach-frame">
+    <div class="c3"></div><div class="c4"></div>
+    <div class="stage-wrap" id="cal-stage-wrap">
+      <div class="zoom-wrap zoom-full" id="cal-zoom-wrap">
+        <video id="cal-video" autoplay playsinline muted></video>
+        <canvas id="cal-overlay"></canvas>
+      </div>
+      <span class="focus-tag" id="cal-focus-tag">ซูมโฟกัสมือ/เท้า</span>
+      <div class="pose-caption"><span class="name" id="cal-pose-name">—</span></div>
+    </div>
+  </div>
+  <div class="btn-row" style="margin-top:18px;">
+    <button class="btn btn-ghost" onclick="goTo('screen-teacher')">กลับรายการ</button>
+    <button class="btn btn-teal" id="save-hold-btn">กดค้างไว้เพื่ออัดท่า</button>
+  </div>
+  <p class="note" style="margin-top:6px;" id="cal-rec-indicator"></p>
+  <p class="note" style="margin-top:4px;" id="cal-hint">ท่านิ่ง: กดค้างไว้ครึ่งวินาทีแล้วปล่อย · ท่าเคลื่อนไหว: กดค้างไว้แล้วทำท่าให้ครบกระบวนท่า จากนั้นปล่อยนิ้ว (สูงสุด 3 วินาที)</p>
+</div>
+
+<script>
+/* =====================================================================
+   DATA: หมวดหมู่ท่าทั้งหมด ตามที่ครูกำหนด
+   keypointSet ใช้กำหนดว่าจะเทียบข้อต่อกลุ่มใดในการตรวจจับ (ตำแหน่ง/มุม)
+   ===================================================================== */
+const KP_HAND = ['left_wrist','right_wrist','left_elbow','right_elbow','left_shoulder','right_shoulder'];
+const KP_FOOT = ['left_ankle','right_ankle','left_knee','right_knee','left_hip','right_hip'];
+const KP_FULL = ['nose','left_shoulder','right_shoulder','left_elbow','right_elbow','left_wrist','right_wrist',
+                 'left_hip','right_hip','left_knee','right_knee','left_ankle','right_ankle'];
+
+const CATEGORIES = [
+  { id:'hand',    group:'นาฏยศัพท์', label:'นาฏยศัพท์ส่วนมือ', kp:KP_HAND, poses:[
+      {id:'jeeb_ngai',    name:'จีบหงาย'},
+      {id:'jeeb_kwam',    name:'จีบคว่ำ'},
+      {id:'jeeb_prokkang',name:'จีบปรกข้าง'},
+      {id:'jeeb_songlang',name:'จีบส่งหลัง'},
+      {id:'jeeb_lorkaew', name:'จีบล่อแก้ว'},
+      {id:'wong_bon',     name:'วงบน'},
+      {id:'wong_klang',   name:'วงกลาง'},
+      {id:'wong_lang',    name:'วงล่าง'},
+  ]},
+  { id:'foot', group:'นาฏยศัพท์', label:'นาฏยศัพท์ส่วนเท้า', kp:KP_FOOT, poses:[
+      {id:'soi_tao',    name:'ซอยเท้า'},
+      {id:'pra_tao',    name:'ประเท้า'},
+      {id:'yok_tao',    name:'ยกเท้า'},
+      {id:'kratung_tao',name:'กระทุ้งเท้า'},
+      {id:'kradok_lang',name:'กระดกหลัง'},
+      {id:'kradok_seaw',name:'กระดกเสี้ยว'},
+  ]},
+  { id:'speech', group:'ภาษาท่า', label:'ภาษาท่าแทนคำพูด', kp:KP_FULL, poses:[
+      {id:'ma',       name:'มา'},
+      {id:'pai',      name:'ไป'},
+      {id:'patiseit', name:'ปฏิเสธ'},
+      {id:'chan',     name:'ฉัน'},
+      {id:'ter',      name:'เธอ'},
+      {id:'khochern', name:'ขอเชิญ'},
+  ]},
+  { id:'action', group:'ภาษาท่า', label:'ภาษาท่าแทนอากัปกิริยา', kp:KP_FULL, poses:[
+      {id:'doen', name:'เดิน'},
+      {id:'nang', name:'นั่ง'},
+      {id:'yeun', name:'ยืน'},
+      {id:'non',  name:'นอน'},
+  ]},
+  { id:'emotion', group:'ภาษาท่า', label:'ภาษาท่าแทนอารมณ์ความรู้สึก', kp:KP_FULL, poses:[
+      {id:'rak',     name:'รัก'},
+      {id:'sao',     name:'เศร้า'},
+      {id:'krot',    name:'โกรธ'},
+      {id:'deejai',  name:'ดีใจ'},
+      {id:'khernai', name:'เขินอาย'},
+  ]},
+];
+const TEACHER_PIN = '2568'; // ครูเปลี่ยนรหัสได้ตรงนี้
+
+const SKELETON_PAIRS = [
+  ['left_shoulder','right_shoulder'],['left_shoulder','left_elbow'],['left_elbow','left_wrist'],
+  ['right_shoulder','right_elbow'],['right_elbow','right_wrist'],['left_shoulder','left_hip'],
+  ['right_shoulder','right_hip'],['left_hip','right_hip'],['left_hip','left_knee'],
+  ['left_knee','left_ankle'],['right_hip','right_knee'],['right_knee','right_ankle'],
+  ['nose','left_shoulder'],['nose','right_shoulder']
+];
+
+/* =====================================================================
+   STORAGE HELPERS  (window.storage — persists across sessions)
+   reference poses + leaderboard are SHARED so the whole class sees them
+   ===================================================================== */
+async function loadReferences(){
+  try{
+    const res = await window.storage.get('dance-reference-poses', true);
+    return res ? JSON.parse(res.value) : {};
+  }catch(e){ return {}; }
+}
+async function saveReference(poseId, framesSeq){
+  const refs = await loadReferences();
+  refs[poseId] = { framesSeq, savedAt: Date.now() };
+  await window.storage.set('dance-reference-poses', JSON.stringify(refs), true);
+}
+async function loadTolerance(){
+  try{
+    const res = await window.storage.get('dance-tolerance', true);
+    return res ? parseFloat(res.value) : 0.35;
+  }catch(e){ return 0.35; }
+}
+async function saveTolerance(v){
+  await window.storage.set('dance-tolerance', String(v), true);
+}
+async function loadLeaderboard(catId){
+  try{
+    const res = await window.storage.get('leaderboard:'+catId, true);
+    return res ? JSON.parse(res.value) : [];
+  }catch(e){ return []; }
+}
+async function addLeaderboardEntry(catId, name, timeMs){
+  const board = await loadLeaderboard(catId);
+  board.push({name, timeMs, date:new Date().toLocaleDateString('th-TH')});
+  board.sort((a,b)=>a.timeMs-b.timeMs);
+  const top = board.slice(0,10);
+  await window.storage.set('leaderboard:'+catId, JSON.stringify(top), true);
+  return top;
+}
+
+/* =====================================================================
+   POSE MATH — normalize by torso so distance-from-camera / height
+   don't matter, then compare against the teacher's saved reference
+   ===================================================================== */
+function kp(keypoints, name){ return keypoints.find(k=>k.name===name); }
+
+function normalizePose(keypoints){
+  const ls=kp(keypoints,'left_shoulder'), rs=kp(keypoints,'right_shoulder');
+  const lh=kp(keypoints,'left_hip'), rh=kp(keypoints,'right_hip');
+  if(!ls||!rs||!lh||!rh) return null;
+  if(ls.score<0.25||rs.score<0.25||lh.score<0.25||rh.score<0.25) return null;
+  const cx=(ls.x+rs.x+lh.x+rh.x)/4, cy=(ls.y+rs.y+lh.y+rh.y)/4;
+  const scale = Math.hypot((ls.x+rs.x)/2-(lh.x+rh.x)/2,(ls.y+rs.y)/2-(lh.y+rh.y)/2) || 1;
+  const out={};
+  keypoints.forEach(k=>{ out[k.name]={x:(k.x-cx)/scale, y:(k.y-cy)/scale, score:k.score}; });
+  return out;
+}
+function comparePoses(liveNorm, refNorm, names){
+  let total=0,count=0;
+  for(const n of names){
+    const a=liveNorm[n], b=refNorm[n];
+    if(!a||!b||a.score<0.25) continue;
+    total += Math.hypot(a.x-b.x, a.y-b.y);
+    count++;
+  }
+  if(count < names.length*0.6) return null; // too many joints missing to judge fairly
+  return total/count;
+}
+function denormalizeForDraw(refNorm, cw, ch, pxScale){
+  const out={};
+  for(const name in refNorm){
+    out[name] = { x: cw/2 + refNorm[name].x*pxScale, y: ch/2 + refNorm[name].y*pxScale };
+  }
+  return out;
+}
+
+/* =====================================================================
+   FOCUS/ZOOM — for "hand" and "foot" categories we crop in tight so the
+   student isn't looking at a full-body outline, just the relevant joints
+   ===================================================================== */
+function applyZoomClass(zoomWrapEl, focusTagEl, catId){
+  zoomWrapEl.classList.remove('zoom-hand','zoom-foot','zoom-full');
+  if(catId==='hand'){ zoomWrapEl.classList.add('zoom-hand'); focusTagEl.textContent='โฟกัสมือ'; focusTagEl.classList.add('show'); }
+  else if(catId==='foot'){ zoomWrapEl.classList.add('zoom-foot'); focusTagEl.textContent='โฟกัสเท้า'; focusTagEl.classList.add('show'); }
+  else{ zoomWrapEl.classList.add('zoom-full'); focusTagEl.classList.remove('show'); }
+}
+
+/* =====================================================================
+   APP STATE / NAVIGATION
+   ===================================================================== */
+let state = { playerName:'', category:null, poseIndex:0, startTime:0, refs:{}, tolerance:0.35,
+               refSeqNorm:[], covered:new Set(), poseStartTime:0 };
+let detector=null, modelReady=false;
+
+function goTo(id){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  stopAllCameras();
+  if(id==='screen-game') startGameScreen();
+  if(id==='screen-calibrate') startCalibrateScreen(currentCalibratePose);
+  if(id==='screen-category') renderCategoryGrid();
+  if(id==='screen-teacher') renderTeacherList();
+  if(id==='screen-home') renderLeaderboardHome();
+}
+
+function confirmName(){
+  const v = document.getElementById('player-name').value.trim();
+  state.playerName = v || 'ผู้กล้าไม่ประสงค์ออกนาม';
+  document.getElementById('cat-player-tag').textContent = 'ผู้เล่น: '+state.playerName;
+  goTo('screen-category');
+}
+
+function checkPin(){
+  const v = document.getElementById('pin-input').value.trim();
+  if(v===TEACHER_PIN){ goTo('screen-teacher'); }
+  else{ document.getElementById('pin-error').textContent = 'รหัสไม่ถูกต้อง ลองอีกครั้ง'; }
+}
+
+async function renderCategoryGrid(){
+  const grid = document.getElementById('cat-grid');
+  grid.innerHTML='';
+  const refs = await loadReferences();
+  for(const cat of CATEGORIES){
+    const doneCount = cat.poses.filter(p=>refs[p.id]).length;
+    const ready = doneCount === cat.poses.length;
+    const div = document.createElement('button');
+    div.className='cat-card';
+    div.style.opacity = ready? '1':'.55';
+    div.innerHTML = `<h3>${cat.label}</h3><p>${cat.group}</p>
+      <span class="count">${doneCount}/${cat.poses.length} ท่าต้นแบบพร้อม</span>`;
+    div.onclick = ()=>{
+      if(!ready){ alert('หมวดนี้ยังบันทึกท่าต้นแบบไม่ครบ กรุณาแจ้งครูให้ตั้งค่าก่อนเล่น'); return; }
+      state.category = cat; state.poseIndex=0;
+      goTo('screen-game');
+    };
+    grid.appendChild(div);
+  }
+}
+
+/* =====================================================================
+   TEACHER: calibration list + tolerance slider
+   ===================================================================== */
+let currentCalibratePose=null;
+document.getElementById('tolerance-slider').addEventListener('input', async (e)=>{
+  document.getElementById('tolerance-value').textContent = e.target.value;
+  await saveTolerance(parseFloat(e.target.value));
+});
+async function renderTeacherList(){
+  const tol = await loadTolerance();
+  document.getElementById('tolerance-slider').value = tol;
+  document.getElementById('tolerance-value').textContent = tol.toFixed(2);
+  const refs = await loadReferences();
+  const list = document.getElementById('teacher-list');
+  list.innerHTML='';
+  CATEGORIES.forEach(cat=>{
+    const h = document.createElement('div');
+    h.style.cssText='font-weight:900;color:var(--teal);margin:14px 0 4px;font-family:\'Noto Serif Thai\',serif;';
+    h.textContent = cat.label;
+    list.appendChild(h);
+    cat.poses.forEach(p=>{
+      const row = document.createElement('div');
+      row.className='list-row';
+      const done = !!refs[p.id];
+      row.innerHTML = `<button style="background:none;border:none;font-size:15px;text-align:left;flex:1;cursor:pointer;font-family:inherit;">${p.name}</button>
+        <span class="${done?'tag-done':'tag-missing'}">${done?'✓ บันทึกแล้ว':'ยังไม่มี'}</span>`;
+      row.querySelector('button').onclick = ()=>{ currentCalibratePose = {cat, pose:p}; goTo('screen-calibrate'); };
+      list.appendChild(row);
+    });
+  });
+}
+
+/* =====================================================================
+   CAMERA / MODEL SETUP (shared for game + calibration)
+   ===================================================================== */
+async function ensureModel(){
+  if(modelReady) return;
+  await tf.setBackend('webgl'); await tf.ready();
+  detector = await poseDetection.createDetector(
+    poseDetection.SupportedModels.MoveNet,
+    { modelType: poseDetection.movenet.modelType.SINGLEPOSE_LIGHTNING }
+  );
+  modelReady = true;
+}
+async function startCamera(videoEl){
+  const stream = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:'user', width:640, height:480 }, audio:false });
+  videoEl.srcObject = stream;
+  await new Promise(r=> videoEl.onloadedmetadata = ()=>{ videoEl.play(); r(); });
+  return stream;
+}
+function stopAllCameras(){
+  ['video','cal-video'].forEach(id=>{
+    const v = document.getElementById(id);
+    if(v && v.srcObject){ v.srcObject.getTracks().forEach(t=>t.stop()); v.srcObject=null; }
+  });
+  gameLoopActive=false; calLoopActive=false;
+  if(typeof isRecording!=='undefined' && isRecording){ isRecording=false; if(typeof clearRecordingTimers==='function') clearRecordingTimers(); }
+}
+
+/* =====================================================================
+   GAME SCREEN LOGIC
+   ===================================================================== */
+let gameLoopActive=false;
+let holdStart=null; const HOLD_MS=500;
+const GHOST_FRAME_MS=160; // playback speed of the animated reference ghost
+
+async function startGameScreen(){
+  document.getElementById('game-hint').textContent = 'กำลังเปิดกล้อง...';
+  await ensureModel();
+  state.refs = await loadReferences();
+  state.tolerance = await loadTolerance();
+  const video = document.getElementById('video');
+  await startCamera(video);
+  const canvas = document.getElementById('overlay');
+  const wrap = document.getElementById('stage-wrap');
+  canvas.width = wrap.clientWidth; canvas.height = wrap.clientHeight;
+  applyZoomClass(document.getElementById('zoom-wrap'), document.getElementById('focus-tag'), state.category.id);
+  document.getElementById('game-hint').textContent = 'ขยับตามเงาสีทอง ถ้าท่านั้นมีการเคลื่อนไหว เงาจะขยับให้ดูตัวอย่างด้วย';
+  state.startTime = Date.now();
+  gameLoopActive = true;
+  updatePoseCaption();
+  beginPose();
+  requestAnimationFrame(gameLoop);
+  gameTimerTick();
+}
+function currentGamePose(){ return state.category.poses[state.poseIndex]; }
+function updatePoseCaption(){
+  document.getElementById('hud-pose-name').textContent = currentGamePose().name;
+  document.getElementById('hud-progress').textContent = (state.poseIndex+1)+'/'+state.category.poses.length;
+}
+// called whenever a new pose begins: load+normalize its recorded sequence, reset progress trackers
+function beginPose(){
+  const pose = currentGamePose();
+  const refEntry = state.refs[pose.id];
+  state.refSeqNorm = refEntry ? refEntry.framesSeq.map(f=>normalizePose(f)).filter(Boolean) : [];
+  state.covered = new Set();
+  state.poseStartTime = Date.now();
+  holdStart = null;
+}
+function gameTimerTick(){
+  if(!gameLoopActive) return;
+  const ms = Date.now()-state.startTime;
+  const s = Math.floor(ms/1000);
+  document.getElementById('hud-timer').textContent =
+    String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0');
+  setTimeout(gameTimerTick, 250);
+}
+async function gameLoop(){
+  if(!gameLoopActive) return;
+  const video = document.getElementById('video');
+  const canvas = document.getElementById('overlay');
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+
+  const category = state.category;
+  const seq = state.refSeqNorm;
+  let statusEl = document.getElementById('hud-status');
+
+  // animate the ghost through the recorded sequence (loops) — this IS the "moves through the
+  // correct steps" behaviour for dynamic poses; for static poses seq.length is 1 so it just holds
+  let ghostNorm = null;
+  if(seq.length>0){
+    const ghostIdx = Math.floor((Date.now()-state.poseStartTime)/GHOST_FRAME_MS) % seq.length;
+    ghostNorm = seq[ghostIdx];
+    const pxScale = Math.min(canvas.width,canvas.height)*0.55;
+    const drawn = denormalizeForDraw(ghostNorm, canvas.width, canvas.height, pxScale);
+    drawSkeleton(ctx, drawn, 'rgba(201,162,39,0.9)', true, category.kp);
+  }
+
+  if(video.readyState>=2 && detector){
+    const poses = await detector.estimatePoses(video);
+    if(poses[0]){
+      const live = poses[0].keypoints;
+      drawSkeleton(ctx, toXY(live), 'rgba(19,115,95,0.95)', false, category.kp);
+      const liveNorm = normalizePose(live);
+      if(liveNorm && seq.length>0){
+        seq.forEach((rn,idx)=>{
+          if(state.covered.has(idx)) return;
+          const dist = comparePoses(liveNorm, rn, category.kp);
+          if(dist!==null && dist < state.tolerance) state.covered.add(idx);
+        });
+        const required = Math.max(1, Math.ceil(seq.length*0.7));
+        const lastIdx = seq.length-1;
+        const lastDist = comparePoses(liveNorm, seq[lastIdx], category.kp);
+        const onFinalNow = lastDist!==null && lastDist < state.tolerance;
+
+        if(state.covered.size >= required && onFinalNow){
+          if(!holdStart) holdStart = Date.now();
+          const elapsed = Date.now()-holdStart;
+          statusEl.className='pill status-ok';
+          statusEl.textContent = seq.length>1
+            ? 'ครบจังหวะแล้ว! ค้างท่าสุดท้ายไว้ '+Math.max(0,Math.ceil((HOLD_MS-elapsed)/100)/10)+'s'
+            : 'ตรงแล้ว! ค้างไว้ '+Math.max(0,Math.ceil((HOLD_MS-elapsed)/100)/10)+'s';
+          if(elapsed >= HOLD_MS){ holdStart=null; onPoseConfirmed(); return; }
+        } else {
+          holdStart=null;
+          statusEl.className='pill status-wait';
+          statusEl.textContent = seq.length>1
+            ? 'ผ่านจังหวะ '+state.covered.size+'/'+seq.length+' — ขยับตามเงาทอง'
+            : 'ปรับท่าให้ตรงกับเงาทอง';
+        }
+      }
+    }
+  }
+  requestAnimationFrame(gameLoop);
+}
+function toXY(keypoints){
+  const out={}; keypoints.forEach(k=>{ out[k.name]={x:k.x,y:k.y,score:k.score}; }); return out;
+}
+function normalizeStored(keypoints){ return normalizePose(keypoints); }
+// allowedNames: if provided, only draw joints/bones within that set (used to focus on hand or foot only)
+function drawSkeleton(ctx, pts, color, dashed, allowedNames){
+  const allowed = n => !allowedNames || allowedNames.includes(n);
+  ctx.strokeStyle=color; ctx.lineWidth=4; ctx.setLineDash(dashed?[8,6]:[]);
+  SKELETON_PAIRS.forEach(([a,b])=>{
+    if(!allowed(a) || !allowed(b)) return;
+    const pa=pts[a], pb=pts[b];
+    if(pa && pb){ ctx.beginPath(); ctx.moveTo(pa.x,pa.y); ctx.lineTo(pb.x,pb.y); ctx.stroke(); }
+  });
+  ctx.setLineDash([]);
+  ctx.fillStyle=color;
+  Object.entries(pts).forEach(([name,p])=>{
+    if(!allowed(name)) return;
+    ctx.beginPath(); ctx.arc(p.x,p.y,5,0,7); ctx.fill();
+  });
+}
+async function onPoseConfirmed(){
+  state.poseIndex++;
+  if(state.poseIndex >= state.category.poses.length){
+    gameLoopActive=false;
+    const timeMs = Date.now()-state.startTime;
+    const board = await addLeaderboardEntry(state.category.id, state.playerName, timeMs);
+    const rank = board.findIndex(b=>b.timeMs===timeMs && b.name===state.playerName)+1;
+    document.getElementById('res-name').textContent = state.playerName;
+    document.getElementById('res-cat').textContent = state.category.label;
+    document.getElementById('res-time').textContent = fmtTime(timeMs);
+    document.getElementById('res-rank').textContent = rank>0 ? ('อันดับที่ '+rank+' บนกระดานผู้ชนะของหมวดนี้ 🏆') : '';
+    goTo('screen-result');
+    return;
+  }
+  updatePoseCaption();
+  beginPose();
+  requestAnimationFrame(gameLoop);
+}
+function fmtTime(ms){
+  const s = ms/1000;
+  const m = Math.floor(s/60);
+  const rem = (s%60).toFixed(1);
+  return String(m).padStart(2,'0')+':'+String(rem).padStart(4,'0');
+}
+
+/* =====================================================================
+   CALIBRATION SCREEN LOGIC (teacher records the reference pose)
+   ===================================================================== */
+let calLoopActive=false; let lastLiveKeypoints=null;
+async function startCalibrateScreen(sel){
+  document.getElementById('cal-pose-name').textContent = sel.pose.name+'  ('+sel.cat.label+')';
+  await ensureModel();
+  const video = document.getElementById('cal-video');
+  await startCamera(video);
+  const canvas = document.getElementById('cal-overlay');
+  const wrap = document.getElementById('cal-stage-wrap');
+  canvas.width = wrap.clientWidth; canvas.height = wrap.clientHeight;
+  applyZoomClass(document.getElementById('cal-zoom-wrap'), document.getElementById('cal-focus-tag'), sel.cat.id);
+  document.getElementById('cal-rec-indicator').textContent='';
+  calLoopActive = true;
+  requestAnimationFrame(calLoop);
+}
+async function calLoop(){
+  if(!calLoopActive) return;
+  const video = document.getElementById('cal-video');
+  const canvas = document.getElementById('cal-overlay');
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  if(video.readyState>=2 && detector){
+    const poses = await detector.estimatePoses(video);
+    if(poses[0]){
+      lastLiveKeypoints = poses[0].keypoints;
+      drawSkeleton(ctx, toXY(lastLiveKeypoints), 'rgba(122,31,43,0.9)', false, currentCalibratePose.cat.kp);
+    }
+  }
+  requestAnimationFrame(calLoop);
+}
+// Recording: hold the button and perform the movement. We sample frames while held so
+// multi-step movements (ซอยเท้า, เดิน, ไป-มา ฯลฯ) are captured as a short sequence, not one snapshot.
+const MIN_HOLD_MS = 350, MAX_HOLD_MS = 3000, SAMPLE_MS = 120;
+let isRecording=false, saveHoldStart=null, sampleTimer=null, maxCapTimer=null, recordingFrames=[];
+const saveBtn = document.getElementById('save-hold-btn');
+const recIndicator = document.getElementById('cal-rec-indicator');
+
+function clearRecordingTimers(){
+  if(sampleTimer){ clearInterval(sampleTimer); sampleTimer=null; }
+  if(maxCapTimer){ clearTimeout(maxCapTimer); maxCapTimer=null; }
+}
+function startSaveHold(){
+  if(isRecording) return; // guard: ignore a duplicate start if two pointer events fire for one press
+  isRecording = true;
+  clearRecordingTimers();
+  saveHoldStart = Date.now();
+  recordingFrames = [];
+  saveBtn.textContent='● กำลังอัด...';
+  recIndicator.textContent = 'บันทึกแล้ว 0.0s (ปล่อยนิ้วเมื่อทำท่าเสร็จ)';
+  sampleTimer = setInterval(()=>{
+    if(lastLiveKeypoints) recordingFrames.push(lastLiveKeypoints);
+    const secs = ((Date.now()-saveHoldStart)/1000).toFixed(1);
+    recIndicator.textContent = 'บันทึกแล้ว '+secs+'s (ปล่อยนิ้วเมื่อทำท่าเสร็จ)';
+  }, SAMPLE_MS);
+  maxCapTimer = setTimeout(finishSaveHold, MAX_HOLD_MS);
+}
+async function finishSaveHold(){
+  if(!isRecording) return; // avoid double-processing (e.g. pointerup AND pointercancel for the same press)
+  isRecording = false;
+  clearRecordingTimers();
+  const heldMs = saveHoldStart ? Date.now()-saveHoldStart : 0;
+  saveHoldStart = null;
+  if(heldMs < MIN_HOLD_MS || recordingFrames.length===0){
+    saveBtn.textContent='กดค้างไว้เพื่ออัดท่า';
+    recIndicator.textContent='สั้นเกินไป หรือกล้องยังไม่เห็นตัวชัดเจน ลองอีกครั้ง (ค้างไว้อย่างน้อยครึ่งวินาที)';
+    return;
+  }
+  await saveReference(currentCalibratePose.pose.id, recordingFrames);
+  saveBtn.textContent = recordingFrames.length>3 ? 'บันทึกท่าเคลื่อนไหวแล้ว ✓' : 'บันทึกท่าแล้ว ✓';
+  recIndicator.textContent = 'เก็บไว้ '+recordingFrames.length+' จังหวะ';
+  setTimeout(()=>{ saveBtn.textContent='กดค้างไว้เพื่ออัดท่า'; goTo('screen-teacher'); }, 800);
+}
+function cancelSaveHold(){ finishSaveHold(); }
+
+// Pointer Events unify mouse + touch + pen in one event model, and pointer capture keeps
+// the press "alive" even if a finger slides slightly off the button. This also fixes the
+// tablet bug where a long-press triggers the browser's own context menu / text-selection
+// gesture (which used to leave the old separate touch/mouse listeners stuck mid-recording).
+saveBtn.addEventListener('pointerdown', (e)=>{
+  e.preventDefault();
+  try{ saveBtn.setPointerCapture(e.pointerId); }catch(err){}
+  startSaveHold();
+});
+saveBtn.addEventListener('pointerup', cancelSaveHold);
+saveBtn.addEventListener('pointercancel', cancelSaveHold);
+saveBtn.addEventListener('pointerleave', (e)=>{ if(e.pointerType==='mouse') cancelSaveHold(); });
+saveBtn.addEventListener('contextmenu', (e)=>e.preventDefault());
+
+/* =====================================================================
+   HOME LEADERBOARD PREVIEW
+   ===================================================================== */
+async function renderLeaderboardHome(){
+  const box = document.getElementById('home-leaderboard');
+  box.innerHTML = '<p class="note">กำลังโหลด...</p>';
+  let html='';
+  for(const cat of CATEGORIES){
+    const board = await loadLeaderboard(cat.id);
+    if(board.length===0) continue;
+    html += `<h3 style="color:var(--maroon);margin:16px 0 4px;">${cat.label}</h3><table>`;
+    board.slice(0,3).forEach((b,i)=>{
+      html += `<tr><td class="${i===0?'rank1':''}">${i+1}. ${b.name}</td><td class="mono">${fmtTime(b.timeMs)}</td></tr>`;
+    });
+    html += `</table>`;
+  }
+  box.innerHTML = html || '<p class="note">ยังไม่มีใครทำสำเร็จ — เป็นคนแรกสิ!</p>';
+}
+
+/* init */
+document.getElementById('tolerance-slider').value = 0.35;
+</script>
+</body>
+</html>
