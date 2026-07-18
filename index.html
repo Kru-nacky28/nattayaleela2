@@ -592,7 +592,7 @@ async function gameLoop(){
     const poses = await detector.estimatePoses(video);
     if(poses[0]){
       const live = poses[0].keypoints;
-      drawSkeleton(ctx, toXY(live), 'rgba(19,115,95,0.95)', false, category.kp);
+      drawSkeleton(ctx, toXY(live, video, canvas.width, canvas.height), 'rgba(19,115,95,0.95)', false, category.kp);
       const liveNorm = normalizePose(live);
       if(liveNorm && seq.length>0){
         seq.forEach((rn,idx)=>{
@@ -625,8 +625,23 @@ async function gameLoop(){
   }
   requestAnimationFrame(gameLoop);
 }
-function toXY(keypoints){
-  const out={}; keypoints.forEach(k=>{ out[k.name]={x:k.x,y:k.y,score:k.score}; }); return out;
+function toXY(keypoints, video, canvasW, canvasH){
+  // The pose model reports coordinates in the CAMERA'S native pixel size (video.videoWidth/Height),
+  // which is usually a different size than the canvas we draw on — and the video itself is shown
+  // with object-fit:cover (cropped to fill the box). Drawing raw coordinates directly, as before,
+  // made the skeleton drift off the body and sometimes fall outside the visible canvas entirely.
+  // This reproduces the same "cover" mapping so the skeleton lines up with what's on screen.
+  const vw = (video && video.videoWidth) || canvasW;
+  const vh = (video && video.videoHeight) || canvasH;
+  const scale = Math.max(canvasW/vw, canvasH/vh);
+  const offX = (vw*scale - canvasW)/2;
+  const offY = (vh*scale - canvasH)/2;
+  const out={};
+  keypoints.forEach(k=>{
+    if(k.score < 0.35) return; // drop low-confidence points instead of drawing noisy/jumpy guesses
+    out[k.name] = { x:k.x*scale-offX, y:k.y*scale-offY, score:k.score };
+  });
+  return out;
 }
 function normalizeStored(keypoints){ return normalizePose(keypoints); }
 // allowedNames: if provided, only draw joints/bones within that set (used to focus on hand or foot only)
@@ -697,7 +712,7 @@ async function calLoop(){
     const poses = await detector.estimatePoses(video);
     if(poses[0]){
       lastLiveKeypoints = poses[0].keypoints;
-      drawSkeleton(ctx, toXY(lastLiveKeypoints), 'rgba(122,31,43,0.9)', false, currentCalibratePose.cat.kp);
+      drawSkeleton(ctx, toXY(lastLiveKeypoints, video, canvas.width, canvas.height), 'rgba(122,31,43,0.9)', false, currentCalibratePose.cat.kp);
     }
   }
   requestAnimationFrame(calLoop);
