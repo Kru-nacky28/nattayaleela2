@@ -36,6 +36,7 @@ class GameApp {
     this.btnStartGame = document.getElementById('btn-start-game');
     this.btnTeacherMode = document.getElementById('btn-teacher-mode');
     this.btnToggleSound = document.getElementById('btn-toggle-sound');
+    this.btnSwitchCamera = document.getElementById('btn-switch-camera');
     this.btnSkip = document.getElementById('btn-skip');
     this.btnPlayAgain = document.getElementById('btn-play-again');
 
@@ -57,6 +58,7 @@ class GameApp {
     this.holdText = document.getElementById('hold-text');
     this.successPopModal = document.getElementById('success-pop-modal');
     this.coinRainContainer = document.getElementById('coin-rain-container');
+    this.scanLaserLine = document.getElementById('scan-laser-line');
 
     // Summary Score Elements
     this.summaryTotalScore = document.getElementById('summary-total-score');
@@ -77,6 +79,20 @@ class GameApp {
     // Start Game
     if (this.btnStartGame) {
       this.btnStartGame.addEventListener('click', () => this.startGame());
+    }
+
+    // Switch Camera Front/Back
+    if (this.btnSwitchCamera) {
+      this.btnSwitchCamera.addEventListener('click', async () => {
+        window.soundEngine.playClick();
+        const settings = window.teacherStore.getSettings();
+        const newMode = settings.facingMode === 'user' ? 'environment' : 'user';
+        window.teacherStore.saveSettings({ facingMode: newMode });
+
+        if (window.poseDetector && this.videoElement) {
+          await window.poseDetector.startCamera(this.videoElement);
+        }
+      });
     }
 
     // Enter Key on Student Input
@@ -246,6 +262,8 @@ class GameApp {
 
     // Evaluate Posture Hold Progress (3 Seconds Delay System)
     if (evaluation && evaluation.isMatched) {
+      if (this.scanLaserLine) this.scanLaserLine.classList.add('scanning-active');
+
       if (!this.holdStartTime) {
         this.holdStartTime = Date.now();
       }
@@ -260,12 +278,13 @@ class GameApp {
 
       this.updateHoldUI(this.holdProgress, evaluation.message);
 
-      // Check if held for full 3 seconds
+      // Check if held for full 3 seconds delay
       if (elapsed >= this.REQUIRED_HOLD_MS) {
         this.triggerPostureSuccess();
       }
     } else {
       // Pose lost or inaccurate - reset hold timer
+      if (this.scanLaserLine) this.scanLaserLine.classList.remove('scanning-active');
       this.resetHoldProgress();
       if (evaluation && evaluation.message) {
         if (this.holdText) this.holdText.textContent = evaluation.message;
@@ -276,7 +295,8 @@ class GameApp {
   resetHoldProgress() {
     this.holdStartTime = null;
     this.holdProgress = 0;
-    this.updateHoldUI(0, 'จัดเงาลางๆ ของตนเอง ทาบกับเงาสีดำต้นฉบับ');
+    if (this.scanLaserLine) this.scanLaserLine.classList.remove('scanning-active');
+    this.updateHoldUI(0, 'จัดเงาลางๆ ของตนเอง ทาบกับเงาลางๆ ต้นฉบับ');
   }
 
   updateHoldUI(percent, text) {
@@ -286,9 +306,9 @@ class GameApp {
     if (this.holdText) {
       if (percent > 0) {
         const secondsRemaining = Math.ceil((this.REQUIRED_HOLD_MS - (percent / 100 * this.REQUIRED_HOLD_MS)) / 1000);
-        this.holdText.textContent = `กำลังนิ่งตรงท่า... ถือค้างไว้อีก ${secondsRemaining} วินาที`;
+        this.holdText.textContent = `แสกนทาบเงาถูกต้อง... ถือค้างไว้อีก ${secondsRemaining} วินาที`;
       } else {
-        this.holdText.textContent = text || 'จัดเงาลางๆ ของตนเอง ทาบกับเงาสีดำต้นฉบับ';
+        this.holdText.textContent = text || 'จัดเงาลางๆ ของตนเอง ทาบกับเงาลางๆ ต้นฉบับ';
       }
     }
   }
@@ -298,8 +318,8 @@ class GameApp {
     if (this.isSuccessState) return;
     this.isSuccessState = true;
 
-    // Add +5 points per posture
-    this.currentScore += 5;
+    // Add +10 points per posture
+    this.currentScore += 10;
     if (this.scoreText) this.scoreText.textContent = String(this.currentScore);
 
     // Sound effect bell chime & 5-baht coin sound
@@ -383,8 +403,8 @@ class GameApp {
     const minutesUsed = Math.floor(timeUsed / 60);
     const secondsUsed = timeUsed % 60;
 
-    // Base score: 5 points per completed posture
-    const baseScore = this.completedCount * 5;
+    // Base score: 10 points per completed posture
+    const baseScore = this.completedCount * 10;
 
     // Speed Bonus Score Calculation:
     // All 8 postures completed <= 60s -> +20 bonus points
@@ -404,6 +424,18 @@ class GameApp {
 
     const totalNetScore = baseScore + bonusScore;
 
+    // Save Log automatically to Teacher Analytics Store
+    if (window.teacherStore) {
+      window.teacherStore.saveStudentLog(
+        this.studentName,
+        totalNetScore,
+        baseScore,
+        bonusScore,
+        this.completedCount,
+        timeUsed
+      );
+    }
+
     // Update Summary Screen UI
     const summaryName = document.getElementById('summary-student-name');
     const summaryCompleted = document.getElementById('summary-completed');
@@ -415,7 +447,8 @@ class GameApp {
     if (summaryTime) summaryTime.textContent = `${minutesUsed} นาที ${secondsUsed} วินาที`;
 
     if (this.summaryTotalScore) this.summaryTotalScore.textContent = String(totalNetScore);
-    if (this.summaryBaseScore) this.summaryBaseScore.textContent = `${baseScore} คะแนน (${this.completedCount} ท่า x 5 คะแนน)`;
+    if (this.summaryBaseScore) this.summaryBaseScore.textContent = `${baseScore} คะแนน (${this.completedCount} ท่า x 10 คะแนน)`;
+    if (this.summaryBonusScore) this.summaryBonusScore.textContent = bonusText;
     if (this.summaryBonusScore) this.summaryBonusScore.textContent = bonusText;
 
     if (summaryBadge) {
@@ -513,6 +546,95 @@ class GameApp {
       window.teacherStore.clearAllCustomImages();
       this.renderTeacherPostureList();
       alert('ล้างไฟล์ภาพทั้งหมดเรียบร้อยแล้ว');
+    }
+  }
+
+  // --- Teacher Dashboard Tabs & Student Analytics Backend ---
+
+  switchTeacherTab(tabName) {
+    const tabBtnImages = document.getElementById('tab-btn-images');
+    const tabBtnAnalytics = document.getElementById('tab-btn-analytics');
+    const tabContentImages = document.getElementById('teacher-tab-images');
+    const tabContentAnalytics = document.getElementById('teacher-tab-analytics');
+
+    if (tabName === 'images') {
+      if (tabBtnImages) tabBtnImages.classList.add('active');
+      if (tabBtnAnalytics) tabBtnAnalytics.classList.remove('active');
+      if (tabContentImages) tabContentImages.style.display = 'block';
+      if (tabContentAnalytics) tabContentAnalytics.style.display = 'none';
+      this.renderTeacherPostureList();
+    } else if (tabName === 'analytics') {
+      if (tabBtnAnalytics) tabBtnAnalytics.classList.add('active');
+      if (tabBtnImages) tabBtnImages.classList.remove('active');
+      if (tabContentAnalytics) tabContentAnalytics.style.display = 'block';
+      if (tabContentImages) tabContentImages.style.display = 'none';
+      this.renderAnalyticsTable();
+    }
+  }
+
+  renderAnalyticsTable() {
+    const tbody = document.getElementById('analytics-table-body');
+    if (!tbody) return;
+
+    const stats = window.teacherStore.getStudentSummaryStats();
+    if (stats.length === 0) {
+      tbody.innerHTML = `
+        <tr>
+          <td colspan="9" style="text-align: center; color: #BBB; padding: 24px;">
+            ยังไม่มีประวัติสถิติการเล่นของนักเรียนในขณะนี้
+          </td>
+        </tr>
+      `;
+      return;
+    }
+
+    tbody.innerHTML = stats.map((s, idx) => {
+      const impColor = s.improvement > 0 ? '#00E676' : (s.improvement < 0 ? '#FF5252' : '#FFD700');
+      const impSign = s.improvement > 0 ? '+' : '';
+      return `
+        <tr>
+          <td>${idx + 1}</td>
+          <td><strong>${s.name}</strong></td>
+          <td>${s.playCount} ครั้ง</td>
+          <td>${s.firstScore} คะแนน</td>
+          <td>${s.latestScore} คะแนน</td>
+          <td style="color: #FFD700; font-weight: 700;">${s.bestScore} คะแนน</td>
+          <td style="color: ${impColor}; font-weight: 700;">${impSign}${s.improvement}% (เก่งขึ้น)</td>
+          <td><span style="padding: 2px 8px; border-radius: 6px; background: rgba(0,230,118,0.15); color: #00E676; border: 1px solid #00E676; font-size: 0.8rem;">${s.paResult}</span></td>
+          <td style="font-size: 0.82rem; color: #BBB;">${s.lastPlayDate}</td>
+        </tr>
+      `;
+    }).join('');
+  }
+
+  handleTeacherImportPack(inputElement) {
+    const file = inputElement.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const jsonStr = e.target.result;
+      const success = window.teacherStore.importCustomPack(jsonStr);
+      if (success) {
+        window.soundEngine.playBell();
+        this.renderTeacherPostureList();
+        alert('นำเข้าไฟล์ภาพตั้งค่าข้ามเครื่อง (JSON Pack) เรียบร้อยแล้ว!');
+      } else {
+        alert('รูปแบบไฟล์ JSON ไม่ถูกต้อง');
+      }
+    };
+    reader.readAsText(file);
+  }
+
+  printAnalyticsReport() {
+    window.print();
+  }
+
+  clearStudentHistoryLogs() {
+    if (confirm('คุณต้องการล้างประวัติสถิติการเล่นทั้งหมดของนักเรียนหรือไม่?')) {
+      window.teacherStore.clearHistory();
+      this.renderAnalyticsTable();
+      alert('ล้างประวัติสถิติเรียบร้อยแล้ว');
     }
   }
 }

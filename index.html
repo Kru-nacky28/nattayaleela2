@@ -28,10 +28,11 @@
         <span class="brand-logo">🎭</span>
         <div>
           <h1>นาฏยศัพท์ ขยับให้ตรงเงา</h1>
-          <div class="brand-subtitle">เกม AI ตรวจจับท่าทางนาฏศิลป์ไทย ชั้นมัธยมศึกษาปีที่ 1</div>
+          <div class="brand-subtitle">เกม AI ตรวจจับท่าทางนาฏศิลป์ไทย โดย คุณครูนรีรัตน์  ธนาวัชรากุล</div>
         </div>
       </div>
       <div class="header-controls">
+        <button id="btn-switch-camera" class="btn-icon" title="สลับกล้องหน้า/กล้องหลัง">📷</button>
         <button id="btn-toggle-sound" class="btn-icon" title="เปิด/ปิดเสียงดนตรี">🔊</button>
         <button id="btn-teacher-mode" class="btn-gold">🔒 โหมดครู</button>
       </div>
@@ -43,6 +44,7 @@
         <h2 class="start-title">ยินดีต้อนรับเข้าสู่เกม AI</h2>
         <p class="start-desc">
           การพัฒนาทักษะการปฏิบัตินาฏยศัพท์ด้วยเกม AI ปัญญาประดิษฐ์<br>
+          โดย คุณครูนรีรัตน์  ธนาวัชรากุล<br>
           ให้นักเรียนพิมพ์ชื่อ-นามสกุล ก่อนกดเริ่มเล่นเกม
         </p>
 
@@ -94,7 +96,10 @@
           <video id="webcam-video" class="video-element" autoplay playsinline muted></video>
           <canvas id="skeleton-canvas" class="skeleton-canvas"></canvas>
 
-          <!-- Silhouette Target Image Overlay (เงาสีดำต้นฉบับ) -->
+          <!-- AI Scanning Sweep Laser Line Overlay -->
+          <div id="scan-laser-line" class="scan-laser-line"></div>
+
+          <!-- Silhouette Target Image Overlay (เงาลางๆ ต้นฉบับ) -->
           <div class="silhouette-overlay">
             <img id="silhouette-overlay-img" src="" alt="Silhouette Overlay" />
           </div>
@@ -104,7 +109,7 @@
 
           <!-- 3-Second Hold Delay Progress Ring -->
           <div class="hold-timer-ring">
-            <div id="hold-text" class="hold-text">จัดเงาลางๆ ของตนเอง ทาบกับเงาสีดำต้นฉบับ</div>
+            <div id="hold-text" class="hold-text">จัดเงาลางๆ ของตนเอง ทาบกับเงาลางๆ ต้นฉบับ</div>
             <div class="progress-bar-track">
               <div id="hold-progress-bar" class="progress-bar-fill"></div>
             </div>
@@ -113,7 +118,7 @@
           <!-- Floating Success Pop-up Modal (✅ Correct!) -->
           <div id="success-pop-modal" class="success-pop-modal">
             <div class="checkmark-icon">✅</div>
-            <div class="success-title">ถูกต้องแล้ว! +5 คะแนน 🪙</div>
+            <div class="success-title">ถูกต้องแล้ว! +10 คะแนน 🪙</div>
           </div>
         </div>
 
@@ -166,7 +171,7 @@
             <div class="score-label">เวลาที่ใช้รวม</div>
           </div>
           <div class="score-box">
-            <div id="summary-total-score" class="score-num" style="color: #FFD700;">60</div>
+            <div id="summary-total-score" class="score-num" style="color: #FFD700;">100</div>
             <div class="score-label">คะแนนรวมสุทธิ 🪙</div>
           </div>
         </div>
@@ -174,8 +179,8 @@
         <!-- Score Breakdown details -->
         <div style="background: rgba(15,2,5,0.7); border: 1px solid var(--thai-gold); border-radius: 14px; padding: 14px 20px; margin-bottom: 20px; text-align: left; font-size: 0.95rem; line-height: 1.8;">
           <div style="display: flex; justify-content: space-between;">
-            <span>🪙 คะแนนฐาน (ข้อละ 5 คะแนน):</span>
-            <strong id="summary-base-score">40 คะแนน</strong>
+            <span>🪙 คะแนนฐาน (ข้อละ 10 คะแนน):</span>
+            <strong id="summary-base-score">80 คะแนน</strong>
           </div>
           <div style="display: flex; justify-content: space-between;">
             <span>⚡ คะแนนพิเศษความเร็ว:</span>
@@ -196,47 +201,111 @@
   </div>
 
   <!-- TEACHER MODE MODALS -->
-  <!-- 1. Passcode Input Modal (Form wrapped for Mobile Keyboard submit) -->
+  <!-- 1. Passcode Input Modal (Form wrapped - Passcode not displayed on screen) -->
   <div id="modal-teacher-pass" class="modal-backdrop">
     <div class="modal-box" style="max-width: 420px; text-align: center;">
       <div class="modal-header">
-        <h2>🔒 เข้าสู่โหมดครู (Teacher Mode)</h2>
+        <h2>🔒 เข้าสู่โหมดครูผู้สอน</h2>
         <button id="btn-close-pass-modal" type="button" class="btn-close">&times;</button>
       </div>
       <p style="font-size: 0.95rem; color: #E0D0E0; margin-bottom: 20px;">
-        กรอกรหัสผ่านเพื่อเข้าสู่ระบบจัดการและอัปโหลดภาพท่าต้นฉบับ
+        กรอกรหัสผ่านเข้าสู่ระบบหลังบ้านและการจัดการภาพต้นฉบับ
       </p>
       
       <form id="form-teacher-pass" onsubmit="event.preventDefault(); window.app.verifyTeacherPassword();">
         <div class="input-group">
-          <input type="tel" id="input-teacher-pass" class="input-control" placeholder="2569" maxlength="4" pattern="[0-9]*" inputmode="numeric" autocomplete="off" style="text-align: center; letter-spacing: 8px; font-size: 1.8rem; font-weight: 700;" />
+          <input type="password" id="input-teacher-pass" class="input-control" placeholder="กรอกรหัสผ่าน 4 หลัก" maxlength="4" pattern="[0-9]*" inputmode="numeric" autocomplete="off" style="text-align: center; letter-spacing: 8px; font-size: 1.8rem; font-weight: 700;" />
         </div>
         <button type="submit" id="btn-submit-pass" class="btn-gold" style="width: 100%; justify-content: center; font-size: 1.15rem; padding: 14px; margin-top: 10px;">
-          🔑 ยืนยันรหัสผ่าน (2569)
+          🔑 ยืนยันรหัสผ่าน
         </button>
       </form>
     </div>
   </div>
 
-  <!-- 2. Teacher Dashboard Modal -->
+  <!-- 2. Teacher Dashboard & Analytics Backend Modal -->
   <div id="modal-teacher-dashboard" class="modal-backdrop">
-    <div class="modal-box">
+    <div class="modal-box" style="max-width: 900px;">
       <div class="modal-header">
-        <h2>⚙️ โหมดครูผู้สอน - จัดการภาพท่าต้นฉบับ</h2>
+        <h2>⚙️ ระบบหลังบ้านคุณครูนรีรัตน์ - สถิติ & จัดการภาพต้นฉบับ</h2>
         <button id="btn-close-dashboard-modal" type="button" class="btn-close">&times;</button>
       </div>
-      <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 12px;">
-        <p style="font-size: 0.9rem; color: #E0D0E0; margin: 0;">
-          ครูสามารถอัปโหลดภาพถ่าย หรือภาพวาดท่าต้นฉบับของตนเอง บันทึกไว้เป็นท่าเป้าหมายสำหรับนักเรียนได้ (ระบบย่อขนาดภาพให้อัตโนมัติ)
-        </p>
-        <button type="button" class="btn-gold" style="padding: 6px 14px; font-size: 0.82rem; background: linear-gradient(135deg, #FF5252 0%, #C62828 100%); color: #FFF;" onclick="window.app.handleTeacherResetAllImages()">
-          🗑️ ล้างไฟล์ภาพที่อัปโหลดทั้งหมด
+
+      <!-- Tab Buttons Navigation -->
+      <div class="teacher-tabs" style="display: flex; gap: 10px; margin-bottom: 20px; border-bottom: 1px solid var(--thai-gold);">
+        <button type="button" id="tab-btn-images" class="teacher-tab-btn active" onclick="window.app.switchTeacherTab('images')">
+          📷 จัดการภาพท่าต้นฉบับ
+        </button>
+        <button type="button" id="tab-btn-analytics" class="teacher-tab-btn" onclick="window.app.switchTeacherTab('analytics')">
+          📊 สถิติคะแนน & พัฒนาการนักเรียน (สำหรับ PA)
         </button>
       </div>
 
-      <div id="teacher-posture-list" class="teacher-posture-list">
-        <!-- Generated dynamically via app.js -->
+      <!-- TAB 1: CUSTOM IMAGES MANAGEMENT -->
+      <div id="teacher-tab-images" class="teacher-tab-content active">
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 16px;">
+          <p style="font-size: 0.9rem; color: #E0D0E0; margin: 0;">
+            อัปโหลดภาพถ่าย หรือภาพวาดท่าต้นฉบับของครู (ระบบบีบอัดขนาดภาพให้อัตโนมัติ)
+          </p>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <button type="button" class="btn-gold" style="padding: 6px 12px; font-size: 0.8rem;" onclick="window.teacherStore.exportCustomPack()">
+              📥 ส่งออกไฟล์ภาพ (JSON Pack)
+            </button>
+            <label class="btn-gold" style="padding: 6px 12px; font-size: 0.8rem; cursor: pointer;">
+              📤 นำเข้าไฟล์ภาพ
+              <input type="file" accept=".json" style="display: none;" onchange="window.app.handleTeacherImportPack(this)" />
+            </label>
+            <button type="button" class="btn-gold" style="padding: 6px 12px; font-size: 0.8rem; background: linear-gradient(135deg, #FF5252 0%, #C62828 100%); color: #FFF;" onclick="window.app.handleTeacherResetAllImages()">
+              🗑️ ล้างไฟล์ภาพทั้งหมด
+            </button>
+          </div>
+        </div>
+
+        <div id="teacher-posture-list" class="teacher-posture-list">
+          <!-- Generated dynamically via app.js -->
+        </div>
       </div>
+
+      <!-- TAB 2: STUDENT ANALYTICS & PA REPORT BACKEND -->
+      <div id="teacher-tab-analytics" class="teacher-tab-content" style="display: none;">
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 16px;">
+          <h3 style="color: var(--thai-gold-light); font-size: 1.1rem;">📈 รายงานสถิติคะแนนและอัตราพัฒนาการเรียนรู้รายบุคคล</h3>
+          <div style="display: flex; gap: 8px;">
+            <button type="button" class="btn-gold" style="padding: 6px 14px; font-size: 0.85rem;" onclick="window.app.printAnalyticsReport()">
+              🖨️ พิมพ์รายงาน / ปริ้นท์ (Print PDF)
+            </button>
+            <button type="button" class="btn-gold" style="padding: 6px 14px; font-size: 0.85rem; background: linear-gradient(135deg, #00C853 0%, #007E33 100%); color: #FFF;" onclick="window.teacherStore.exportCSV()">
+              📥 ดาวน์โหลดไฟล์ Excel (CSV)
+            </button>
+            <button type="button" class="btn-gold" style="padding: 6px 14px; font-size: 0.85rem; background: linear-gradient(135deg, #FF5252 0%, #C62828 100%); color: #FFF;" onclick="window.app.clearStudentHistoryLogs()">
+              🗑️ ล้างประวัติสถิติ
+            </button>
+          </div>
+        </div>
+
+        <!-- Printable Student Analytics Table -->
+        <div id="print-area-report" class="table-responsive-box">
+          <table class="analytics-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>ชื่อ - นามสกุล นักเรียน</th>
+                <th>จำนวนครั้งที่เล่น</th>
+                <th>คะแนนครั้งแรก</th>
+                <th>คะแนนล่าสุด</th>
+                <th>คะแนนสูงสุด</th>
+                <th>พัฒนาการ (% เก่งขึ้น)</th>
+                <th>ผลการประเมิน PA</th>
+                <th>วันที่เล่นล่าสุด</th>
+              </tr>
+            </thead>
+            <tbody id="analytics-table-body">
+              <!-- Rendered dynamically via app.js -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
     </div>
   </div>
 

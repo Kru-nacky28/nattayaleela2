@@ -288,8 +288,8 @@ body::before {
   height: 100%;
   object-fit: cover;
   transform: scaleX(-1); /* Mirror camera for intuitive user alignment */
-  opacity: 0.55; /* เงาลางๆ - Translucent camera video for student shadow overlay */
-  filter: brightness(85%) contrast(120%) sepia(25%);
+  opacity: 0.52; /* เห็นภาพผู้เล่นเกมเป็นเงาลางๆ ที่หน้าจอ */
+  filter: contrast(130%) brightness(80%) sepia(35%);
   transition: opacity 0.3s ease;
 }
 
@@ -301,27 +301,56 @@ body::before {
   height: 100%;
   transform: scaleX(-1);
   pointer-events: none;
+  z-index: 4;
 }
 
-/* Target Silhouette Overlay over camera (ภาพต้นฉบับเฉพาะส่วนที่เป็นเงาสีดำ) */
+/* AI Laser Scanning Sweep Line (ระบบสแกนตรวจจับความถูกต้องของการยืนทาบเงา) */
+.scan-laser-line {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 4px;
+  background: linear-gradient(90deg, transparent 0%, #FFD700 50%, transparent 100%);
+  box-shadow: 0 0 15px #FFD700, 0 0 30px #FFD700;
+  pointer-events: none;
+  z-index: 6;
+  animation: laserScanSweep 3s infinite alternate ease-in-out;
+}
+
+.scan-laser-line.scanning-active {
+  background: linear-gradient(90deg, transparent 0%, #00FF88 50%, transparent 100%);
+  box-shadow: 0 0 20px #00FF88, 0 0 40px #00FF88;
+  height: 6px;
+}
+
+@keyframes laserScanSweep {
+  0% { top: 5%; opacity: 0.4; }
+  50% { opacity: 1; }
+  100% { top: 92%; opacity: 0.4; }
+}
+
+/* Target Silhouette Overlay over camera (ภาพต้นฉบับเป็นเงาลางๆ) */
 .silhouette-overlay {
   position: absolute;
   top: 0;
   left: 0;
   width: 100%;
   height: 100%;
-  opacity: 0.85;
   pointer-events: none;
   display: flex;
   align-items: center;
   justify-content: center;
-  filter: drop-shadow(0 0 14px rgba(255, 215, 0, 0.7));
+  z-index: 5;
 }
 
 .silhouette-overlay img {
   max-width: 85%;
   max-height: 85%;
   object-fit: contain;
+  opacity: 0.48; /* มองเห็นภาพต้นฉบับเป็นเงาลางๆ ซ้อนทับบนหน้าจอ */
+  mix-blend-mode: multiply; /* ตัดสีพื้นหลังขาวออก */
+  filter: contrast(130%);
 }
 
 /* Game Status Overlay Bars */
@@ -743,3 +772,96 @@ body::before {
 
 /* Utility Classes */
 .hidden { display: none !important; }
+
+/* Teacher Tab Navigation Styles */
+.teacher-tab-btn {
+  background: transparent;
+  border: none;
+  border-bottom: 3px solid transparent;
+  color: var(--text-muted);
+  padding: 10px 18px;
+  font-family: var(--font-primary);
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.teacher-tab-btn.active, .teacher-tab-btn:hover {
+  color: var(--thai-gold-light);
+  border-bottom-color: var(--thai-gold);
+}
+
+.table-responsive-box {
+  width: 100%;
+  overflow-x: auto;
+  margin-top: 10px;
+  border-radius: 12px;
+  border: 1px solid var(--thai-gold);
+}
+
+.analytics-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 0.9rem;
+}
+
+.analytics-table th {
+  background: rgba(45, 10, 18, 0.95);
+  color: var(--thai-gold-light);
+  padding: 12px 14px;
+  border-bottom: 2px solid var(--thai-gold);
+  white-space: nowrap;
+}
+
+.analytics-table td {
+  padding: 10px 14px;
+  border-bottom: 1px solid rgba(212, 175, 55, 0.2);
+  color: var(--text-light);
+}
+
+.analytics-table tr:nth-child(even) {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.analytics-table tr:hover {
+  background: rgba(212, 175, 55, 0.1);
+}
+
+/* Print Styles for Printable PA Evaluation Report */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  #modal-teacher-dashboard, #modal-teacher-dashboard * {
+    visibility: visible;
+  }
+  #modal-teacher-dashboard {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    background: #FFF !important;
+    color: #000 !important;
+  }
+  .modal-box {
+    background: #FFF !important;
+    color: #000 !important;
+    border: none !important;
+    box-shadow: none !important;
+    max-width: 100% !important;
+  }
+  .modal-header, .teacher-tabs, button {
+    display: none !important;
+  }
+  .analytics-table th {
+    background: #F0F0F0 !important;
+    color: #000 !important;
+    border-bottom: 2px solid #000 !important;
+  }
+  .analytics-table td {
+    color: #000 !important;
+    border-bottom: 1px solid #CCC !important;
+  }
+}

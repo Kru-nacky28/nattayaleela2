@@ -60,8 +60,28 @@ class PoseDetector {
       }
 
       // 3. Setup Camera Stream
-      if (window.Camera && videoElement) {
-        const settings = window.teacherStore ? window.teacherStore.getSettings() : { facingMode: 'user' };
+      await this.startCamera(videoElement);
+    } catch (err) {
+      console.error('Error starting MediaPipe Camera:', err);
+    }
+  }
+
+  async startCamera(videoElement) {
+    if (!videoElement) return;
+
+    const settings = window.teacherStore ? window.teacherStore.getSettings() : { facingMode: 'user' };
+    const mode = settings.facingMode || 'user';
+
+    // Apply proper mirroring for front camera vs rear camera
+    videoElement.style.transform = mode === 'user' ? 'scaleX(-1)' : 'scaleX(1)';
+
+    try {
+      // 1. Try MediaPipe Camera utils wrapper
+      if (window.Camera) {
+        if (this.camera) {
+          try { await this.camera.stop(); } catch(e){}
+        }
+
         this.camera = new window.Camera(videoElement, {
           onFrame: async () => {
             if (this.pose) await this.pose.send({ image: videoElement });
@@ -69,13 +89,52 @@ class PoseDetector {
           },
           width: 640,
           height: 480,
-          facingMode: settings.facingMode || 'user'
+          facingMode: mode
         });
         await this.camera.start();
         this.isReady = true;
+        return true;
+      }
+    } catch (e) {
+      console.warn('MediaPipe camera wrapper failed, using native getUserMedia fallback...', e);
+    }
+
+    // 2. Native getUserMedia fallback
+    try {
+      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: mode,
+            width: { ideal: 640 },
+            height: { ideal: 480 }
+          },
+          audio: false
+        });
+        videoElement.srcObject = stream;
+        await videoElement.play();
+
+        const processFrame = async () => {
+          if (videoElement.readyState >= 2) {
+            if (this.pose) await this.pose.send({ image: videoElement });
+            if (this.hands) await this.hands.send({ image: videoElement });
+          }
+          if (this.isReady) requestAnimationFrame(processFrame);
+        };
+        this.isReady = true;
+        processFrame();
+        return true;
       }
     } catch (err) {
-      console.error('Error starting MediaPipe Camera:', err);
+      console.error('Camera permission error:', err);
+      const ua = navigator.userAgent || '';
+      const isInApp = /Line|FB_IAB|FBAN|FBAV|Messenger|Instagram|TikTok/i.test(ua);
+
+      if (isInApp) {
+        alert('⚠️ แอป LINE / Facebook บล็อกการเปิดกล้อง!\n\n💡 กรุณากดปุ่ม 3 จุด (⋮) หรือขีดสามขีด ที่มุมบนขวา แล้วเลือก "เปิดด้วยเบราว์เซอร์อื่น" (Open in Chrome / Safari) เพื่อเปิดใช้งานกล้อง');
+      } else {
+        alert('⚠️ สิทธิ์การใช้งานกล้องถูกปฏิเสธ (Permission Denied)\n\n💡 วิธีแก้ไข:\n1. กดที่ไอคอนแม่กุญแจ 🔒 หรือ (i) หน้าชื่อเว็บด้านบน\n2. เลือก "สิทธิ์การตั้งค่าเว็บไซต์" -> เปลี่ยน "กล้อง" เป็น "อนุญาต (Allow)"');
+      }
+      return false;
     }
   }
 
@@ -169,93 +228,92 @@ class PoseDetector {
 
     switch (postureId) {
       case 1: // ตั้งวงบน (Tang Wong Bon) - Wrists elevated near eyebrow/head level
-        const isHighLeft = leftWristRelY < -0.25 || leftWrist.y < headLevelY + 0.08;
-        const isHighRight = rightWristRelY < -0.25 || rightWrist.y < headLevelY + 0.08;
+        const isHighLeft = leftWristRelY < -0.1 || leftWrist.y < shoulderMidY - 0.04;
+        const isHighRight = rightWristRelY < -0.1 || rightWrist.y < shoulderMidY - 0.04;
         if (isHighLeft || isHighRight) {
           isMatched = true;
           accuracyScore = 95;
-          message = 'ยอดเยี่ยม! ท่าตั้งวงบนถูกต้อง';
+          message = 'ถูกต้อง! ท่าตั้งวงบน';
         } else {
           message = 'ยกแขนวงให้สูงขึ้น ระดับคิ้วหรือศีรษะ';
         }
         break;
 
-      case 2: // ตั้งวงกลาง (Tang Wong Klang) - Wrists near shoulder level
-        const isMidLeft = Math.abs(leftWristRelY) <= 0.35;
-        const isMidRight = Math.abs(rightWristRelY) <= 0.35;
-        const isArmOut = Math.abs(leftWrist.x - leftShoulder.x) > 0.1 || Math.abs(rightWrist.x - rightShoulder.x) > 0.1;
-        if ((isMidLeft || isMidRight) && isArmOut) {
+      case 2: // ตั้งวงกลาง (Tang Wong Klang) - Wrists around shoulder level
+        const isMidLeft = Math.abs(leftWristRelY) <= 0.48 || Math.abs(leftWrist.y - shoulderMidY) < 0.25;
+        const isMidRight = Math.abs(rightWristRelY) <= 0.48 || Math.abs(rightWrist.y - shoulderMidY) < 0.25;
+        if (isMidLeft || isMidRight) {
           isMatched = true;
           accuracyScore = 92;
-          message = 'ยอดเยี่ยม! ท่าตั้งวงกลางถูกต้อง';
+          message = 'ถูกต้อง! ท่าตั้งวงกลาง';
         } else {
           message = 'กางแขนออกข้างลำตัว ให้ปลายนิ้วอยู่ระดับไหล่';
         }
         break;
 
       case 3: // ตั้งวงล่าง (Tang Wong Lang) - Wrists low around abdomen/navel
-        const isLowLeft = leftWristRelY > 0.25 || leftWrist.y > shoulderMidY + 0.12;
-        const isLowRight = rightWristRelY > 0.25 || rightWrist.y > shoulderMidY + 0.12;
+        const isLowLeft = leftWristRelY > 0.12 || leftWrist.y > shoulderMidY + 0.06;
+        const isLowRight = rightWristRelY > 0.12 || rightWrist.y > shoulderMidY + 0.06;
         if (isLowLeft || isLowRight) {
           isMatched = true;
           accuracyScore = 90;
-          message = 'ยอดเยี่ยม! ท่าตั้งวงล่างถูกต้อง';
+          message = 'ถูกต้อง! ท่าตั้งวงล่าง';
         } else {
           message = 'ทอดวงแขนลงด้านล่าง ระดับชายพกหรือหน้าท้อง';
         }
         break;
 
       case 4: // จีบคว่ำ (Jeeb Khwam) - Jeeb gesture with wrist turned down
-        const isJeebHand4 = hasJeebPinch || (leftWristRelY > -0.2 || rightWristRelY > -0.2);
-        if (isJeebHand4 && !handsUpward) {
+        const isJeebHand4 = hasJeebPinch || leftWristRelY > -0.3 || rightWristRelY > -0.3;
+        if (isJeebHand4) {
           isMatched = true;
           accuracyScore = 93;
-          message = 'ยอดเยี่ยม! ท่าจีบคว่ำถูกต้อง';
+          message = 'ถูกต้อง! ท่าจีบคว่ำ';
         } else {
           message = 'ใช้นิ้วชี้แตะหัวแม่มือ แล้วพลิกข้อมือคว่ำลง';
         }
         break;
 
       case 5: // จีบหงาย (Jeeb Ngai) - Jeeb gesture with wrist turned up
-        const isJeebHand5 = hasJeebPinch || handsUpward;
+        const isJeebHand5 = hasJeebPinch || handsUpward || leftWristRelY > -0.3 || rightWristRelY > -0.3;
         if (isJeebHand5) {
           isMatched = true;
           accuracyScore = 94;
-          message = 'ยอดเยี่ยม! ท่าจีบหงายถูกต้อง';
+          message = 'ถูกต้อง! ท่าจีบหงาย';
         } else {
           message = 'จีบนิ้วหงายขึ้นด้านบน พลิกข้อมือหงายขึ้น';
         }
         break;
 
       case 6: // จีบปรกข้าง (Jeeb Prok Khang) - Jeeb near side of head
-        const isProkSideLeft = (leftWristRelY < -0.15) && (Math.abs(leftWrist.x - nose.x) < 0.35);
-        const isProkSideRight = (rightWristRelY < -0.15) && (Math.abs(rightWrist.x - nose.x) < 0.35);
-        if (isProkSideLeft || isProkSideRight || (hasJeebPinch && (leftWristRelY < -0.1 || rightWristRelY < -0.1))) {
+        const isProkSideLeft = leftWristRelY < -0.1;
+        const isProkSideRight = rightWristRelY < -0.1;
+        if (isProkSideLeft || isProkSideRight || hasJeebPinch) {
           isMatched = true;
           accuracyScore = 96;
-          message = 'ยอดเยี่ยม! ท่าจีบปรกข้างถูกต้อง';
+          message = 'ถูกต้อง! ท่าจีบปรกข้าง';
         } else {
           message = 'ยกจีบขึ้นข้างศีรษะ บริเวณขมับหรือข้างหู';
         }
         break;
 
       case 7: // จีบส่งหลัง (Jeeb Song Lang) - Arm pushed behind body
-        const isArmBackLeft = (leftWrist.x < leftShoulder.x - 0.1) || (leftWristRelY > 0.1);
-        const isArmBackRight = (rightWrist.x > rightShoulder.x + 0.1) || (rightWristRelY > 0.1);
+        const isArmBackLeft = (leftWrist.x < leftShoulder.x) || (leftWristRelY > 0.05);
+        const isArmBackRight = (rightWrist.x > rightShoulder.x) || (rightWristRelY > 0.05);
         if (isArmBackLeft || isArmBackRight) {
           isMatched = true;
           accuracyScore = 91;
-          message = 'ยอดเยี่ยม! ท่าจีบส่งหลังถูกต้อง';
+          message = 'ถูกต้อง! ท่าจีบส่งหลัง';
         } else {
           message = 'ส่งแขนตึงไปด้านหลังลำตัว พลิกจีบส่งไปข้างหลัง';
         }
         break;
 
       case 8: // จีบล่อแก้ว (Jeeb LOR Kaew) - Thumb on middle nail
-        if (hasLorKaewPinch || hasJeebPinch || (leftWristRelY < 0.3 || rightWristRelY < 0.3)) {
+        if (hasLorKaewPinch || hasJeebPinch || Math.abs(leftWristRelY) < 0.5 || Math.abs(rightWristRelY) < 0.5) {
           isMatched = true;
           accuracyScore = 95;
-          message = 'ยอดเยี่ยม! ท่าจีบล่อแก้วถูกต้อง';
+          message = 'ถูกต้อง! ท่าจีบล่อแก้ว';
         } else {
           message = 'ใช้นิ้วหัวแม่มือกดทับเล็บนิ้วกลาง นิ้วชี้ดัดงอนขึ้น';
         }
