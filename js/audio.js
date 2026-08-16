@@ -256,21 +256,21 @@ class AudioEngine {
     }
   }
 
-  // --- Quiz Exciting Background Music (เสียงตื่นเต้นระดับเสียงเบาขณะทำแบบทดสอบ) ---
+  // --- Quiz Exciting Background Music (เสียงดนตรีตื่นเต้นระดับเสียงเบากว่าเสียงอ่าน AI) ---
   startQuizBGM() {
     if (this.isMuted || this.quizBgmPlaying) return;
     this.init();
     this.quizBgmPlaying = true;
     this.quizBgmStep = 0;
 
-    const tensionNotes = [440.00, 493.88, 523.25, 659.25]; // A4, B4, C5, E5
-    const stepInterval = 180; // Fast tension BPM (~166 BPM)
+    const tensionNotes = [392.00, 440.00, 493.88, 523.25, 659.25]; // G4, A4, B4, C5, E5
+    const stepInterval = 160; // จังหวะตื่นเต้น (~187 BPM)
 
     this.quizBgmTimer = setInterval(() => {
       if (!this.quizBgmPlaying || this.isMuted) return;
       const now = this.ctx.currentTime;
 
-      // Soft Pulse Beat (เสียงเบาเป็นพิเศษ 0.025 เพื่อไม่กลบเสียง AI อ่านโจทย์)
+      // Soft Exciting Rhythm (ระดับเสียงเบาเป็นพิเศษ 0.018 เพื่อให้เบากว่าเสียง AI อ่านแบบทดสอบอย่างชัดเจน)
       if (this.quizBgmStep % 2 === 0) {
         const osc = this.ctx.createOscillator();
         const gain = this.ctx.createGain();
@@ -279,13 +279,13 @@ class AudioEngine {
         osc.type = 'triangle';
         osc.frequency.setValueAtTime(freq, now);
 
-        gain.gain.setValueAtTime(0.025, now);
-        gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.12);
+        gain.gain.setValueAtTime(0.018, now);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.1);
 
         osc.connect(gain);
         gain.connect(this.ctx.destination);
         osc.start(now);
-        osc.stop(now + 0.14);
+        osc.stop(now + 0.12);
       }
 
       this.quizBgmStep = (this.quizBgmStep + 1) % 16;
