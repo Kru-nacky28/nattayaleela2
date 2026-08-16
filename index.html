@@ -238,7 +238,7 @@
           📌 ข้อที่ <span id="quiz-curr-idx">1</span> / <span id="quiz-total-idx">5</span>
         </div>
         <div id="quiz-timer-pill" class="quiz-timer-pill">
-          ⏱️ เหลือเวลา: <span id="quiz-timer-sec">15</span> วินาที
+          ⏱️ เหลือเวลา: <span id="quiz-timer-sec">25</span> วินาที
         </div>
         <button id="btn-quiz-tts" type="button" class="btn-quiz-tts" title="เปิด/ปิดเสียง AI อ่านโจทย์">
           🔊 อ่านโจทย์ด้วยเสียง AI
@@ -399,7 +399,7 @@
         </div>
       </div>
 
-      <!-- TAB 2: STUDENT ANALYTICS & REPORT BACKEND -->
+      <!-- TAB 2: STUDENT ANALYTICS & REPORT BACKEND (แยกสถิติ 2 ส่วนเด็ดขาด) -->
       <div id="teacher-tab-analytics" class="teacher-tab-content" style="display: none;">
         <!-- Cloud Database / Google Sheet Webhook Sync Card -->
         <div style="background: rgba(15,2,5,0.8); border: 1px solid var(--thai-gold); border-radius: 12px; padding: 12px 16px; margin-bottom: 16px;">
@@ -416,7 +416,7 @@
         </div>
 
         <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 16px;">
-          <h3 style="color: var(--thai-gold-light); font-size: 1.1rem; margin: 0;">📈 รายงานสถิติคะแนนก่อน-หลังเรียน และอัตราพัฒนาการเรียนรู้</h3>
+          <h3 style="color: var(--thai-gold-light); font-size: 1.1rem; margin: 0;">📈 รายงานสถิติผลการเรียนรู้และพัฒนาการรายบุคคล</h3>
           <div style="display: flex; gap: 8px; flex-wrap: wrap;">
             <label class="btn-gold" style="padding: 6px 12px; font-size: 0.82rem; cursor: pointer; background: linear-gradient(135deg, #0288D1 0%, #01579B 100%); color: #FFF;">
               📤 นำเข้าไฟล์สถิติมือถืออื่น
@@ -425,35 +425,74 @@
             <button type="button" class="btn-gold" style="padding: 6px 14px; font-size: 0.85rem;" onclick="window.app.printAnalyticsReport()">
               🖨️ พิมพ์รายงาน / ปริ้นท์ (Print PDF)
             </button>
-            <button type="button" class="btn-gold" style="padding: 6px 14px; font-size: 0.85rem; background: linear-gradient(135deg, #00C853 0%, #007E33 100%); color: #FFF;" onclick="window.teacherStore.exportCSV()">
-              📥 ดาวน์โหลดไฟล์ Excel (CSV)
-            </button>
             <button type="button" class="btn-gold" style="padding: 6px 14px; font-size: 0.85rem; background: linear-gradient(135deg, #FF5252 0%, #C62828 100%); color: #FFF;" onclick="window.app.clearStudentHistoryLogs()">
               🗑️ ล้างประวัติสถิติ
             </button>
           </div>
         </div>
 
-        <!-- Printable Student Analytics Table -->
-        <div id="print-area-report" class="table-responsive-box">
-          <table class="analytics-table">
-            <thead>
-              <tr>
-                <th>#</th>
-                <th>ชื่อ - นามสกุล นักเรียน</th>
-                <th>ก่อนเรียน (Pre /5)</th>
-                <th>หลังเรียน (Post /5)</th>
-                <th>พัฒนาการทฤษฎี (%)</th>
-                <th>ครั้งที่เล่นเกม</th>
-                <th>คะแนนเกม AI</th>
-                <th>ผลการประเมิน</th>
-                <th>วันที่บันทึกล่าสุด</th>
-              </tr>
-            </thead>
-            <tbody id="analytics-table-body">
-              <!-- Rendered dynamically via app.js -->
-            </tbody>
-          </table>
+        <div id="print-area-report">
+          <!-- SECTION 1: 📋 ตารางสถิติแบบทดสอบทฤษฎี (ก่อนเรียน - หลังเรียน) -->
+          <div style="margin-bottom: 24px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-wrap: wrap; gap: 8px;">
+              <h4 style="color: var(--thai-gold-light); margin: 0; font-size: 1rem;">
+                📋 1. สถิติแบบทดสอบทฤษฎี ก่อนเรียน - หลังเรียน (Theory Quiz Analytics)
+              </h4>
+              <button type="button" class="btn-gold" style="padding: 4px 12px; font-size: 0.8rem; background: linear-gradient(135deg, #00C853 0%, #007E33 100%); color: #FFF;" onclick="window.teacherStore.exportQuizCSV()">
+                📥 ดาวน์โหลด Excel แบบทดสอบ (CSV)
+              </button>
+            </div>
+            <div class="table-responsive-box">
+              <table class="analytics-table">
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>ชื่อ - นามสกุล นักเรียน</th>
+                    <th>ก่อนเรียน (Pre /5)</th>
+                    <th>หลังเรียน (Post /5)</th>
+                    <th>พัฒนาการทฤษฎี (%)</th>
+                    <th>ผลการประเมินทฤษฎี</th>
+                    <th>วันที่ทำล่าสุด</th>
+                  </tr>
+                </thead>
+                <tbody id="quiz-analytics-table-body">
+                  <!-- Rendered dynamically -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- SECTION 2: 🎮 ตารางสถิติการปฏิบัติเกม AI (AI Motion Detection Game) -->
+          <div>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-wrap: wrap; gap: 8px;">
+              <h4 style="color: var(--thai-gold-light); margin: 0; font-size: 1rem;">
+                🎮 2. สถิติการฝึกปฏิบัติด้วยเกม AI (AI Motion Game Analytics)
+              </h4>
+              <button type="button" class="btn-gold" style="padding: 4px 12px; font-size: 0.8rem; background: linear-gradient(135deg, #00C853 0%, #007E33 100%); color: #FFF;" onclick="window.teacherStore.exportGameCSV()">
+                📥 ดาวน์โหลด Excel เกม AI (CSV)
+              </button>
+            </div>
+            <div class="table-responsive-box">
+              <table class="analytics-table">
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>ชื่อ - นามสกุล นักเรียน</th>
+                    <th>จำนวนครั้งที่เล่น</th>
+                    <th>คะแนนครั้งแรก</th>
+                    <th>คะแนนล่าสุด</th>
+                    <th>คะแนนสูงสุด</th>
+                    <th>พัฒนาการปฏิบัติ (%)</th>
+                    <th>ผลการประเมินปฏิบัติ</th>
+                    <th>วันที่เล่นล่าสุด</th>
+                  </tr>
+                </thead>
+                <tbody id="game-analytics-table-body">
+                  <!-- Rendered dynamically -->
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
       </div>
 

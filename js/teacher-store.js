@@ -256,105 +256,160 @@ class TeacherStore {
   }
 
   /**
-   * Group logs by student name and calculate summary statistics & % Improvement
-   * รวมทั้งคะแนนทดสอบก่อนเรียน-หลังเรียน และคะแนนปฏิบัติเกม AI
+   * 1. สถิติแบบทดสอบทฤษฎี (ก่อนเรียน - หลังเรียน) แยกอิสระ
    */
-  getStudentSummaryStats() {
-    const gameLogs = this.getHistoryLogs();
+  getQuizSummaryStats() {
     const quizLogs = this.getQuizResults();
+    const studentNames = [...new Set(quizLogs.map(q => q.name))];
+    const list = [];
 
-    const studentSet = new Set([
-      ...gameLogs.map(l => l.name),
-      ...quizLogs.map(q => q.name)
-    ]);
+    studentNames.forEach(name => {
+      const pQuiz = quizLogs.filter(q => q.name === name);
+      const preLog = pQuiz.filter(q => q.type === 'pre').pop();
+      const postLog = pQuiz.filter(q => q.type === 'post').pop();
 
-    const summaryList = [];
+      const preScore = preLog ? preLog.score : '-';
+      const postScore = postLog ? postLog.score : '-';
 
-    studentSet.forEach(name => {
-      const pGameLogs = gameLogs.filter(l => l.name === name);
-      const playCount = pGameLogs.length;
+      let improvementText = '-';
+      let improvementVal = 0;
 
-      const firstGameLog = pGameLogs[0];
-      const latestGameLog = pGameLogs[pGameLogs.length - 1];
-      const bestGameScore = pGameLogs.length > 0 ? Math.max(...pGameLogs.map(l => l.totalScore)) : 0;
-      const latestGameScore = latestGameLog ? latestGameLog.totalScore : 0;
-
-      // Quiz Scores
-      const pQuizLogs = quizLogs.filter(q => q.name === name);
-      const preQuizLog = pQuizLogs.filter(q => q.type === 'pre').pop();
-      const postQuizLog = pQuizLogs.filter(q => q.type === 'post').pop();
-
-      const preScore = preQuizLog ? preQuizLog.score : '-';
-      const postScore = postQuizLog ? postQuizLog.score : '-';
-
-      // พัฒนาการแบบทดสอบ (%)
-      let quizImprovementText = '-';
-      let quizImprovementVal = 0;
-      if (preQuizLog && postQuizLog) {
-        const diff = postQuizLog.score - preQuizLog.score;
+      if (preLog && postLog) {
+        const diff = postLog.score - preLog.score;
         const pct = Math.round((diff / 5) * 100);
-        quizImprovementVal = pct;
-        quizImprovementText = pct >= 0 ? `+${pct}% (${diff >= 0 ? '+' : ''}${diff})` : `${pct}% (${diff})`;
-      } else if (postQuizLog) {
-        quizImprovementText = `${postQuizLog.score}/5`;
+        improvementVal = pct;
+        improvementText = pct >= 0 ? `+${pct}% (${diff >= 0 ? '+' : ''}${diff})` : `${pct}% (${diff})`;
+      } else if (postLog) {
+        improvementText = `${postLog.score}/5`;
       }
 
-      // พัฒนาการเกม AI
-      let gameImprovement = 0;
-      if (firstGameLog && firstGameLog.totalScore > 0 && latestGameLog) {
-        gameImprovement = Math.round(((latestGameLog.totalScore - firstGameLog.totalScore) / firstGameLog.totalScore) * 100);
-      } else if (latestGameLog && latestGameLog.totalScore > 0) {
-        gameImprovement = 100;
-      }
+      let result = 'ผ่านเกณฑ์';
+      if (postLog && postLog.score >= 4) result = 'ดีเยี่ยม (100%)';
+      else if (postLog && postLog.score >= 3) result = 'ดี (ผ่านเกณฑ์)';
+      else if (postLog) result = 'ควรปรับปรุง';
+      else result = 'กำลังเรียนรู้';
 
-      let paResult = 'ผ่านเกณฑ์การประเมิน';
-      if ((postQuizLog && postQuizLog.score >= 4) || latestGameScore >= 80) paResult = 'ดีเยี่ยม (100%)';
-      else if ((postQuizLog && postQuizLog.score >= 3) || latestGameScore >= 50) paResult = 'ดี (ผ่านเกณฑ์)';
-      else paResult = 'ควรปรับปรุง';
+      const lastDate = postLog ? postLog.timestamp : (preLog ? preLog.timestamp : '-');
 
-      const lastDate = latestGameLog ? latestGameLog.timestamp : (postQuizLog ? postQuizLog.timestamp : (preQuizLog ? preQuizLog.timestamp : '-'));
-
-      summaryList.push({
+      list.push({
         name,
-        playCount,
         preScore,
         postScore,
-        quizImprovementText,
-        quizImprovementVal,
-        latestGameScore,
-        bestGameScore,
-        gameImprovement,
-        paResult,
-        lastPlayDate: lastDate
+        improvementText,
+        improvementVal,
+        result,
+        lastDate
       });
     });
 
-    return summaryList;
+    return list;
   }
 
-  // Export CSV File for Excel
-  exportCSV() {
-    const stats = this.getStudentSummaryStats();
+  /**
+   * 2. สถิติการปฏิบัติเกม AI (AI Motion Detection Game) แยกอิสระ
+   */
+  getGameSummaryStats() {
+    const gameLogs = this.getHistoryLogs();
+    const studentNames = [...new Set(gameLogs.map(l => l.name))];
+    const list = [];
+
+    studentNames.forEach(name => {
+      const pLogs = gameLogs.filter(l => l.name === name);
+      const playCount = pLogs.length;
+      const firstLog = pLogs[0];
+      const latestLog = pLogs[pLogs.length - 1];
+      const bestScore = Math.max(...pLogs.map(l => l.totalScore));
+      const latestScore = latestLog.totalScore;
+
+      let gameImprovement = 0;
+      if (firstLog && firstLog.totalScore > 0 && latestLog) {
+        gameImprovement = Math.round(((latestLog.totalScore - firstLog.totalScore) / firstLog.totalScore) * 100);
+      } else if (latestLog && latestLog.totalScore > 0) {
+        gameImprovement = 100;
+      }
+
+      let result = 'ผ่านเกณฑ์การประเมิน';
+      if (latestScore >= 80) result = 'ดีเยี่ยม (100%)';
+      else if (latestScore >= 50) result = 'ดี (ผ่านเกณฑ์)';
+      else result = 'ควรปรับปรุง';
+
+      list.push({
+        name,
+        playCount,
+        firstScore: firstLog.totalScore,
+        latestScore,
+        bestScore,
+        gameImprovement,
+        result,
+        lastDate: latestLog.timestamp
+      });
+    });
+
+    return list;
+  }
+
+  // Combined Summary Stats for Backward Compatibility
+  getStudentSummaryStats() {
+    return {
+      quizStats: this.getQuizSummaryStats(),
+      gameStats: this.getGameSummaryStats()
+    };
+  }
+
+  // Export Quiz CSV File
+  exportQuizCSV() {
+    const stats = this.getQuizSummaryStats();
     if (stats.length === 0) {
-      alert('ยังไม่มีข้อมูลสถิตินักเรียนให้ส่งออก');
+      alert('ยังไม่มีข้อมูลสถิติแบบทดสอบก่อน-หลังเรียนให้ส่งออก');
       return;
     }
 
-    let csvContent = '\uFEFF'; // UTF-8 BOM for Excel Thai language compatibility
-    csvContent += 'ชื่อ - นามสกุล นักเรียน,คะแนนก่อนเรียน (Pre-test /5),คะแนนหลังเรียน (Post-test /5),พัฒนาการทฤษฎี (%),จำนวนครั้งเล่นเกม AI,คะแนนปฏิบัติ AI ล่าสุด,คะแนนสูงสุด AI,ผลการประเมิน,วันที่บันทึกล่าสุด\n';
+    let csvContent = '\uFEFF';
+    csvContent += 'ชื่อ - นามสกุล นักเรียน,คะแนนก่อนเรียน (Pre-test /5),คะแนนหลังเรียน (Post-test /5),พัฒนาการทฤษฎี (%),ผลการประเมิน,วันที่ทำล่าสุด\n';
 
     stats.forEach(s => {
-      csvContent += `"${s.name}","${s.preScore}","${s.postScore}","${s.quizImprovementText}",${s.playCount},${s.latestGameScore},${s.bestGameScore},"${s.paResult}","${s.lastPlayDate}"\n`;
+      csvContent += `"${s.name}","${s.preScore}","${s.postScore}","${s.improvementText}","${s.result}","${s.lastDate}"\n`;
     });
 
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.setAttribute('download', `รายงานสถิติการเรียนรู้_นาฏยศัพท์_${new Date().toISOString().slice(0,10)}.csv`);
+    link.setAttribute('download', `รายงานสถิติแบบทดสอบทฤษฎี_ก่อนหลังเรียน_${new Date().toISOString().slice(0,10)}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+  }
+
+  // Export AI Game Practice CSV File
+  exportGameCSV() {
+    const stats = this.getGameSummaryStats();
+    if (stats.length === 0) {
+      alert('ยังไม่มีข้อมูลสถิติการเล่นเกม AI ให้ส่งออก');
+      return;
+    }
+
+    let csvContent = '\uFEFF';
+    csvContent += 'ชื่อ - นามสกุล นักเรียน,จำนวนครั้งที่เล่น,คะแนนครั้งแรก,คะแนนล่าสุด,คะแนนสูงสุด,พัฒนาการปฏิบัติ (%),ผลการประเมิน,วันที่เล่นล่าสุด\n';
+
+    stats.forEach(s => {
+      const impText = s.gameImprovement >= 0 ? `+${s.gameImprovement}%` : `${s.gameImprovement}%`;
+      csvContent += `"${s.name}",${s.playCount},${s.firstScore},${s.latestScore},${s.bestScore},"${impText}","${s.result}","${s.lastDate}"\n`;
+    });
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `รายงานสถิติการปฏิบัติเกมAI_${new Date().toISOString().slice(0,10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }
+
+  exportCSV() {
+    this.exportQuizCSV();
+    setTimeout(() => this.exportGameCSV(), 500);
   }
 
   // Export Custom Images JSON Data Pack (สำหรับนำไปใช้งานข้ามเครื่อง/GitHub)

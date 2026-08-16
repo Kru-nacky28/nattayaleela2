@@ -168,6 +168,7 @@ class GameApp {
       this.btnCloseQuizModal.addEventListener('click', () => {
         this.stopQuestionTimer();
         if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+        if (window.soundEngine) window.soundEngine.stopQuizBGM();
         if (this.modalQuiz) this.modalQuiz.classList.remove('active');
       });
     }
@@ -724,29 +725,39 @@ class GameApp {
       return;
     }
 
-    if (window.soundEngine) window.soundEngine.playClick();
+    if (window.soundEngine) {
+      window.soundEngine.playClick();
+      window.soundEngine.startQuizBGM(); // เริ่มเล่นเสียงตื่นเต้นระดับเสียงเบา
+    }
 
     this.currentQuizType = type; // 'pre' หรือ 'post'
     this.currentQuizIndex = 0;
 
-    // เตรียมข้อสอบ (Pre-Test: ลำดับปกติ; Post-Test: สลับลำดับคำถาม และสลับตัวเลือก ก ข ค ง)
+    // เตรียมข้อสอบ
     if (type === 'pre') {
+      // Pre-Test: ลำดับปกติ
       this.activeQuestions = window.QUIZ_QUESTIONS.map(q => ({
         ...q,
         options: [...q.options],
         answerIndex: q.answerIndex
       }));
     } else {
-      // Post-Test: Shuffle questions and options dynamically
-      const shuffledQ = this.shuffleArray([...window.QUIZ_QUESTIONS]);
-      this.activeQuestions = shuffledQ.map(q => {
+      // Post-Test: สลับข้อคำถามแบบเลื่อนลำดับ (+1 Cyclic Shift) และสลับตัวเลือก (ก->ข, ข->ค, ค->ง, ง->ก)
+      const masterLen = window.QUIZ_QUESTIONS.length;
+      // ข้อที่ 1 นำคำถามข้อที่ 2 มาถาม, ข้อ 2 นำข้อ 3 มาถาม ฯลฯ
+      const shiftedQuestions = window.QUIZ_QUESTIONS.map((_, i) => window.QUIZ_QUESTIONS[(i + 1) % masterLen]);
+
+      this.activeQuestions = shiftedQuestions.map(q => {
         const originalCorrectText = q.options[q.answerIndex].replace(/^[ก-ง]\.\s*/, '').trim();
         const cleanOpts = q.options.map(opt => opt.replace(/^[ก-ง]\.\s*/, '').trim());
-        const shuffledCleanOpts = this.shuffleArray(cleanOpts);
 
-        const newCorrectIndex = shuffledCleanOpts.findIndex(opt => opt === originalCorrectText);
+        // สลับตัวเลือกแบบเลื่อนลำดับ (ข้อความ ก เลื่อนไปแทน ข, ข ไปแทน ค เป็นต้น)
+        const shiftedCleanOpts = cleanOpts.map((_, i) => cleanOpts[(i + 1) % cleanOpts.length]);
+
+        // คำนวณดัชนีข้อที่ถูกต้องใหม่ให้อัตโนมัติ 100%
+        const newCorrectIndex = shiftedCleanOpts.findIndex(opt => opt === originalCorrectText);
         const prefixes = ['ก', 'ข', 'ค', 'ง'];
-        const prefixedOpts = shuffledCleanOpts.map((opt, i) => `${prefixes[i]}. ${opt}`);
+        const prefixedOpts = shiftedCleanOpts.map((opt, i) => `${prefixes[i]}. ${opt}`);
 
         return {
           ...q,
@@ -802,7 +813,7 @@ class GameApp {
         : 'ข้อถัดไป ➡️';
     }
 
-    // เริ่มนับถอยหลัง 15 วินาทีประจำข้อ
+    // เริ่มนับถอยหลัง 25 วินาทีประจำข้อ
     this.startQuestionTimer();
 
     // หากเปิดโหมดอ่านเสียง AI ให้เริ่มอ่านโจทย์อัตโนมัติ
@@ -813,7 +824,7 @@ class GameApp {
 
   startQuestionTimer() {
     this.stopQuestionTimer();
-    this.questionTimeLeft = 15;
+    this.questionTimeLeft = 25; // 25 seconds per question
 
     if (this.quizTimerSec) this.quizTimerSec.innerText = this.questionTimeLeft;
     if (this.quizTimerPill) this.quizTimerPill.classList.remove('warning');
@@ -829,7 +840,7 @@ class GameApp {
       if (this.questionTimeLeft <= 0) {
         this.stopQuestionTimer();
         if (window.soundEngine) window.soundEngine.playClick();
-        // หมดเวลา 15 วินาที -> เปลี่ยนไปข้อถัดไปอัตโนมัติ
+        // หมดเวลา 25 วินาที -> บันทึก 0 คะแนนและเปลี่ยนไปข้อถัดไปอัตโนมัติ (ไม่วนกลับ)
         this.nextQuizQuestion(true);
       }
     }, 1000);
@@ -903,6 +914,7 @@ class GameApp {
   submitQuiz() {
     this.stopQuestionTimer();
     if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+    if (window.soundEngine) window.soundEngine.stopQuizBGM(); // หยุดเสียงตื่นเต้นเมื่อส่งข้อสอบ
 
     const sName = this.inputStudentName.value.trim();
     let score = 0;
@@ -1006,7 +1018,7 @@ class GameApp {
       expListEl.innerHTML = this.activeQuestions.map((q, idx) => {
         const userAnsIdx = answers[idx];
         const isCorrect = userAnsIdx === q.answerIndex;
-        const userAnsText = (userAnsIdx !== null && userAnsIdx !== undefined) ? q.options[userAnsIdx] : 'ไม่ได้ตอบ (หมดเวลา 15 วินาที)';
+        const userAnsText = (userAnsIdx !== null && userAnsIdx !== undefined) ? q.options[userAnsIdx] : 'ไม่ได้ตอบ (หมดเวลา 25 วินาที - 0 คะแนน)';
         const correctAnsText = q.options[q.answerIndex];
 
         // แสดงกล่องคำอธิบายเฉพาะแบบทดสอบหลังเรียน (Post-test) เท่านั้น
@@ -1039,42 +1051,74 @@ class GameApp {
   }
 
   async renderAnalyticsTable() {
-    const tbody = document.getElementById('analytics-table-body');
-    if (!tbody) return;
+    const quizTbody = document.getElementById('quiz-analytics-table-body');
+    const gameTbody = document.getElementById('game-analytics-table-body');
 
     // Fetch latest online centralized cloud logs if cloud URL is connected
     if (window.teacherStore) {
       await window.teacherStore.fetchCloudStudentLogs();
     }
 
-    const stats = window.teacherStore.getStudentSummaryStats();
-    if (stats.length === 0) {
-      tbody.innerHTML = `
-        <tr>
-          <td colspan="9" style="text-align: center; color: #BBB; padding: 24px;">
-            ยังไม่มีประวัติสถิติการเล่นของนักเรียนในขณะนี้ (หากมีนักเรียนเล่นจากมือถืออื่น สามารถเชื่อมต่อ Google Sheet เพื่อรวมสถิติอัตโนมัติได้)
-          </td>
-        </tr>
-      `;
-      return;
+    // 1. Render Quiz Summary Table
+    if (quizTbody) {
+      const quizStats = window.teacherStore.getQuizSummaryStats();
+      if (quizStats.length === 0) {
+        quizTbody.innerHTML = `
+          <tr>
+            <td colspan="7" style="text-align: center; color: #BBB; padding: 18px;">
+              ยังไม่มีประวัติแบบทดสอบก่อน-หลังเรียนของนักเรียนในขณะนี้
+            </td>
+          </tr>
+        `;
+      } else {
+        quizTbody.innerHTML = quizStats.map((s, idx) => {
+          const impColor = s.improvementVal > 0 ? '#00E676' : (s.improvementVal < 0 ? '#FF5252' : '#FFD700');
+          return `
+            <tr>
+              <td>${idx + 1}</td>
+              <td><strong>${s.name}</strong></td>
+              <td style="color: #FFB74D; font-weight: 600;">${s.preScore !== '-' ? s.preScore + ' / 5' : '-'}</td>
+              <td style="color: #00E676; font-weight: 600;">${s.postScore !== '-' ? s.postScore + ' / 5' : '-'}</td>
+              <td style="color: ${impColor}; font-weight: 700;">${s.improvementText}</td>
+              <td><span style="padding: 2px 8px; border-radius: 6px; background: rgba(0,230,118,0.15); color: #00E676; border: 1px solid #00E676; font-size: 0.8rem;">${s.result}</span></td>
+              <td style="font-size: 0.82rem; color: #BBB;">${s.lastDate}</td>
+            </tr>
+          `;
+        }).join('');
+      }
     }
 
-    tbody.innerHTML = stats.map((s, idx) => {
-      const impColor = s.quizImprovementVal > 0 ? '#00E676' : (s.quizImprovementVal < 0 ? '#FF5252' : '#FFD700');
-      return `
-        <tr>
-          <td>${idx + 1}</td>
-          <td><strong>${s.name}</strong></td>
-          <td style="color: #FFB74D; font-weight: 600;">${s.preScore !== '-' ? s.preScore + ' / 5' : '-'}</td>
-          <td style="color: #00E676; font-weight: 600;">${s.postScore !== '-' ? s.postScore + ' / 5' : '-'}</td>
-          <td style="color: ${impColor}; font-weight: 700;">${s.quizImprovementText}</td>
-          <td>${s.playCount} ครั้ง</td>
-          <td style="color: #FFD700; font-weight: 700;">${s.latestGameScore} คะแนน</td>
-          <td><span style="padding: 2px 8px; border-radius: 6px; background: rgba(0,230,118,0.15); color: #00E676; border: 1px solid #00E676; font-size: 0.8rem;">${s.paResult}</span></td>
-          <td style="font-size: 0.82rem; color: #BBB;">${s.lastPlayDate}</td>
-        </tr>
-      `;
-    }).join('');
+    // 2. Render AI Motion Game Summary Table
+    if (gameTbody) {
+      const gameStats = window.teacherStore.getGameSummaryStats();
+      if (gameStats.length === 0) {
+        gameTbody.innerHTML = `
+          <tr>
+            <td colspan="9" style="text-align: center; color: #BBB; padding: 18px;">
+              ยังไม่มีประวัติสถิติการฝึกปฏิบัติด้วยเกม AI ของนักเรียนในขณะนี้
+            </td>
+          </tr>
+        `;
+      } else {
+        gameTbody.innerHTML = gameStats.map((s, idx) => {
+          const impColor = s.gameImprovement > 0 ? '#00E676' : (s.gameImprovement < 0 ? '#FF5252' : '#FFD700');
+          const impText = s.gameImprovement >= 0 ? `+${s.gameImprovement}%` : `${s.gameImprovement}%`;
+          return `
+            <tr>
+              <td>${idx + 1}</td>
+              <td><strong>${s.name}</strong></td>
+              <td>${s.playCount} ครั้ง</td>
+              <td style="color: #DDD;">${s.firstScore} คะแนน</td>
+              <td style="color: #FFD700; font-weight: 700;">${s.latestScore} คะแนน</td>
+              <td style="color: #00E676; font-weight: 700;">${s.bestScore} คะแนน</td>
+              <td style="color: ${impColor}; font-weight: 700;">${impText}</td>
+              <td><span style="padding: 2px 8px; border-radius: 6px; background: rgba(0,230,118,0.15); color: #00E676; border: 1px solid #00E676; font-size: 0.8rem;">${s.result}</span></td>
+              <td style="font-size: 0.82rem; color: #BBB;">${s.lastDate}</td>
+            </tr>
+          `;
+        }).join('');
+      }
+    }
   }
 
   saveCloudConfig() {
