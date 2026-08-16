@@ -167,7 +167,7 @@ class TeacherStore {
     if (typeof window !== 'undefined' && window.DEFAULT_CLOUD_URL && window.DEFAULT_CLOUD_URL.trim()) {
       return window.DEFAULT_CLOUD_URL.trim();
     }
-    return '';
+    return 'https://script.google.com/macros/s/AKfycbwiGDYpHP-31I68vTwq03VMeX-6y89XocONreRGWPOn5inBEWoMnHlKbUolLt_r4gdm/exec';
   }
 
   saveCloudUrl(url) {

@@ -1078,6 +1078,11 @@ class GameApp {
     const quizTbody = document.getElementById('quiz-analytics-table-body');
     const gameTbody = document.getElementById('game-analytics-table-body');
 
+    const inputCloudUrl = document.getElementById('input-cloud-url');
+    if (inputCloudUrl && window.teacherStore) {
+      inputCloudUrl.value = window.teacherStore.getCloudUrl();
+    }
+
     // Fetch latest online centralized cloud logs if cloud URL is connected
     if (window.teacherStore) {
       await window.teacherStore.fetchCloudStudentLogs();
@@ -1206,12 +1211,123 @@ class GameApp {
 
   printAnalyticsReport() {
     try {
-      this.switchTeacherTab('analytics');
-      setTimeout(() => {
+      const reportElement = document.getElementById('print-area-report');
+      if (!reportElement) {
         window.print();
-      }, 150);
+        return;
+      }
+
+      // คัดลอกเนื้อหารายงานตารางสถิติ
+      const reportHTML = reportElement.innerHTML;
+
+      // เปิดหน้าต่างพิมพ์แยกป้องกันไม่ให้หน้าจอหลักบนโน้ตบุ๊กหลุดโฟกัสหรือเด้งปิดตัวเอง 100%
+      const printWindow = window.open('', '_blank', 'width=900,height=900');
+      if (!printWindow) {
+        window.print();
+        return;
+      }
+
+      printWindow.document.write(`
+        <!DOCTYPE html>
+        <html lang="th">
+        <head>
+          <meta charset="UTF-8">
+          <title>รายงานสถิติผลการเรียนรู้นาฏยศัพท์ส่วนมือ</title>
+          <style>
+            @page {
+              size: A4 portrait;
+              margin: 10mm;
+            }
+            body {
+              font-family: 'Sarabun', 'Prompt', Thonburi, sans-serif;
+              color: #000;
+              background: #FFF;
+              padding: 15px;
+              margin: 0;
+            }
+            h2 {
+              text-align: center;
+              font-size: 14pt;
+              margin-bottom: 4px;
+              color: #000;
+            }
+            p.sub-head {
+              text-align: center;
+              font-size: 9.5pt;
+              color: #444;
+              margin-bottom: 20px;
+            }
+            .btn-gold, button, input, label {
+              display: none !important;
+            }
+            .analytics-table {
+              width: 100% !important;
+              max-width: 100% !important;
+              table-layout: fixed !important;
+              border-collapse: collapse !important;
+              margin-bottom: 20px !important;
+              background: #FFF !important;
+            }
+            .analytics-table th, .analytics-table td {
+              border: 1px solid #333 !important;
+              color: #000 !important;
+              background: #FFF !important;
+              padding: 5px 4px !important;
+              font-size: 8.5pt !important;
+              word-wrap: break-word !important;
+              overflow-wrap: break-word !important;
+              white-space: normal !important;
+              text-align: center !important;
+              line-height: 1.2 !important;
+            }
+            .analytics-table th {
+              background: #F0F0F0 !important;
+              font-weight: bold !important;
+            }
+            .analytics-table th:nth-child(1), .analytics-table td:nth-child(1) { width: 6% !important; }
+            .analytics-table th:nth-child(2), .analytics-table td:nth-child(2) { width: 28% !important; text-align: left !important; }
+            .analytics-table th:nth-child(3), .analytics-table td:nth-child(3) { width: 14% !important; }
+            .analytics-table th:nth-child(4), .analytics-table td:nth-child(4) { width: 14% !important; }
+            .analytics-table th:nth-child(5), .analytics-table td:nth-child(5) { width: 18% !important; }
+            .analytics-table th:nth-child(6), .analytics-table td:nth-child(6) { width: 20% !important; }
+            .badge-eval, .badge-badge {
+              background: transparent !important;
+              border: none !important;
+              color: #000 !important;
+              font-weight: bold !important;
+              padding: 0 !important;
+              font-size: 8.5pt !important;
+            }
+            h4 {
+              font-size: 11pt !important;
+              font-weight: bold !important;
+              margin-top: 15px !important;
+              margin-bottom: 8px !important;
+              border-bottom: 1.5px solid #000 !important;
+              padding-bottom: 4px !important;
+            }
+          </style>
+        </head>
+        <body>
+          <h2>📊 รายงานสรุปผลการเรียนรู้นาฏยศัพท์ส่วนมือ (การตั้งวงและการจีบ)</h2>
+          <p class="sub-head">นวัตกรรมการเรียนรู้นาฏศิลป์ไทย - คุณครูนรีรัตน์ ธนาวัชรากุล | ชั้นมัธยมศึกษาปีที่ 1</p>
+          ${reportHTML}
+          <script>
+            window.onload = function() {
+              setTimeout(function() {
+                window.focus();
+                window.print();
+                window.close();
+              }, 250);
+            };
+          </script>
+        </body>
+        </html>
+      `);
+      printWindow.document.close();
     } catch (e) {
       console.error('Print error:', e);
+      window.print();
     }
   }
 

@@ -1,9 +1,8 @@
 /**
  * Global Configuration for Cloud Centralized Student Sync
- * คุณครูวางลิงก์ Google Sheet WebApp URL ที่นี่เพียงครั้งเดียว
- * นักเรียนทุกคนจากทุกอุปกรณ์ (โน้ตบุ๊ก, ไอแพด, มือถือ) จะเชื่อมต่อสถิติและซิงค์คะแนนตรงกันอัตโนมัติ 100% โดยไม่ต้องพิมพ์ URL อีก!
+ * ลิงก์ Google Sheet WebApp URL สำหรับเชื่อมต่อสถิตินักเรียนจากทุกอุปกรณ์ (โน้ตบุ๊ก, ไอแพด, มือถือ) อัตโนมัติ 100%
  */
-window.DEFAULT_CLOUD_URL = "https://script.google.com/macros/s/AKfycbyVzozrOajr7GwlmXeAJt7KhDFZHsrd0y1PgDm1lLXfD5QE1-Hsi0lps8M3zfPyBAxe/exec";
+window.DEFAULT_CLOUD_URL = "https://script.google.com/macros/s/AKfycbwiGDYpHP-31I68vTwq03VMeX-6y89XocONreRGWPOn5inBEWoMnHlKbUolLt_r4gdm/exec";
 
 
 const QUIZ_QUESTIONS = [
