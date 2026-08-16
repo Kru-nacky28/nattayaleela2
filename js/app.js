@@ -816,28 +816,18 @@ class GameApp {
         : 'ข้อถัดไป ➡️';
     }
 
-    // หยุดตัวจับเวลาเดิมก่อน
-    this.stopQuestionTimer();
+    // เริ่มนับถอยหลัง 30 วินาทีประจำข้อทันที
+    this.startQuestionTimer();
 
-    // แสดงสถานะ 30 วินาทีเตรียมตัว
-    if (this.quizTimerSec) this.quizTimerSec.innerText = 30;
-    if (this.quizTimerPill) this.quizTimerPill.classList.remove('warning');
-
-    // หากเปิดโหมดอ่านเสียง AI ให้เริ่มอ่านโจทย์ก่อน เมื่ออ่านจบแล้วค่อยเริ่มจับเวลานับถอยหลัง 30 วินาที
-    if (this.isTTSEnabled && ('speechSynthesis' in window)) {
-      this.speakCurrentQuestion(() => {
-        // เมื่อ AI อ่านจบ -> เริ่มนับถอยหลัง 30 วินาที
-        this.startQuestionTimer();
-      });
-    } else {
-      // หากไม่ได้เปิดเสียง AI -> เริ่มนับถอยหลัง 30 วินาทีทันที
-      this.startQuestionTimer();
+    // หากเปิดโหมดอ่านเสียง AI ให้เริ่มอ่านโจทย์ควบคู่ไปพร้อมกัน
+    if (this.isTTSEnabled) {
+      this.speakCurrentQuestion();
     }
   }
 
   startQuestionTimer() {
     this.stopQuestionTimer();
-    this.questionTimeLeft = 30; // 30 seconds per question after speech finishes
+    this.questionTimeLeft = 30; // 30 seconds per question
 
     if (this.quizTimerSec) this.quizTimerSec.innerText = this.questionTimeLeft;
     if (this.quizTimerPill) this.quizTimerPill.classList.remove('warning');
@@ -866,24 +856,14 @@ class GameApp {
     }
   }
 
-  speakCurrentQuestion(onEndCallback) {
-    if (!('speechSynthesis' in window)) {
-      if (onEndCallback) onEndCallback();
-      return;
-    }
-
+  speakCurrentQuestion() {
+    if (!('speechSynthesis' in window)) return;
     window.speechSynthesis.cancel(); // หยุดเสียงเดิมก่อน
 
-    if (!this.isTTSEnabled) {
-      if (onEndCallback) onEndCallback();
-      return;
-    }
+    if (!this.isTTSEnabled) return;
 
     const q = this.activeQuestions[this.currentQuizIndex];
-    if (!q) {
-      if (onEndCallback) onEndCallback();
-      return;
-    }
+    if (!q) return;
 
     // เตรียมข้อความอ่านโจทย์ + ตัวเลือก ก, ข, ค, ง
     const cleanQuestion = q.question.replace(/^[0-9]+\.\s*/, '');
@@ -893,22 +873,6 @@ class GameApp {
     const utterance = new SpeechSynthesisUtterance(textToRead);
     utterance.lang = 'th-TH';
     utterance.rate = 1.0; // ความเร็วระดับปกติของคนพูด (ไม่เร็วเกินไป)
-
-    let hasTriggered = false;
-    const triggerCallback = () => {
-      if (!hasTriggered) {
-        hasTriggered = true;
-        if (onEndCallback) onEndCallback();
-      }
-    };
-
-    utterance.onend = triggerCallback;
-    utterance.onerror = triggerCallback;
-
-    // Safety Timeout (ป้องกันหากเบราว์เซอร์ไม่อ่านหรือไม่มีการเรียก onend ให้เริ่มจับเวลาภายใน 20s)
-    setTimeout(() => {
-      triggerCallback();
-    }, 20000);
 
     window.speechSynthesis.speak(utterance);
   }
