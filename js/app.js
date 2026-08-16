@@ -1205,7 +1205,14 @@ class GameApp {
   }
 
   printAnalyticsReport() {
-    window.print();
+    try {
+      // ซูม/แสดงผลเฉพาะรายงานเพื่อการพิมพ์ที่สมบูรณ์แบบ
+      setTimeout(() => {
+        window.print();
+      }, 100);
+    } catch (e) {
+      console.error('Print error:', e);
+    }
   }
 
   clearStudentHistoryLogs() {

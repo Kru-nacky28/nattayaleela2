@@ -238,62 +238,92 @@ class TeacherStore {
     }
   }
 
-  // Fetch & Synchronize Centralized Logs across Notebook, iPad, Mobile Phone
+  // Fetch & Synchronize Centralized Logs across Notebook, iPad, Mobile Phone (Brave & Safari JSONP Compatible)
   async fetchCloudStudentLogs() {
     const cloudUrl = this.getCloudUrl();
     if (!cloudUrl) return;
 
+    // Helper process to merge raw data into local storage
+    const processData = (cloudData) => {
+      if (!Array.isArray(cloudData) || cloudData.length === 0) return;
+
+      const localGameLogs = this.getHistoryLogs();
+      const localQuizLogs = this.getQuizResults();
+
+      const gameIds = new Set(localGameLogs.map(l => String(l.id)));
+      const quizIds = new Set(localQuizLogs.map(q => String(q.id)));
+
+      cloudData.forEach(item => {
+        let log = item;
+
+        // Handle Apps Script 2D array row or JSON string column fallback
+        if (Array.isArray(item)) {
+          try {
+            const jsonStr = item[item.length - 1];
+            if (typeof jsonStr === 'string' && jsonStr.startsWith('{')) {
+              log = JSON.parse(jsonStr);
+            }
+          } catch (err) {
+            log = null;
+          }
+        }
+
+        if (!log || !log.id) return;
+
+        const strId = String(log.id);
+
+        // Separate into Quiz vs Game Logs
+        if (log.logCategory === 'QUIZ' || log.type === 'pre' || log.type === 'post') {
+          if (!quizIds.has(strId)) {
+            localQuizLogs.push(log);
+            quizIds.add(strId);
+          }
+        } else if (log.logCategory === 'GAME' || log.totalScore !== undefined) {
+          if (!gameIds.has(strId)) {
+            localGameLogs.push(log);
+            gameIds.add(strId);
+          }
+        }
+      });
+
+      localStorage.setItem(this.STORAGE_KEY_HISTORY, JSON.stringify(localGameLogs));
+      localStorage.setItem(this.STORAGE_KEY_QUIZ, JSON.stringify(localQuizLogs));
+    };
+
+    // Method 1: Standard fetch
     try {
       const res = await fetch(cloudUrl, { method: 'GET', cache: 'no-cache' });
       if (res.ok) {
         const cloudData = await res.json();
-        if (Array.isArray(cloudData) && cloudData.length > 0) {
-          const localGameLogs = this.getHistoryLogs();
-          const localQuizLogs = this.getQuizResults();
-
-          const gameIds = new Set(localGameLogs.map(l => String(l.id)));
-          const quizIds = new Set(localQuizLogs.map(q => String(q.id)));
-
-          cloudData.forEach(item => {
-            let log = item;
-
-            // Handle Apps Script 2D array row or JSON string column fallback
-            if (Array.isArray(item)) {
-              try {
-                const jsonStr = item[item.length - 1];
-                if (typeof jsonStr === 'string' && jsonStr.startsWith('{')) {
-                  log = JSON.parse(jsonStr);
-                }
-              } catch (err) {
-                log = null;
-              }
-            }
-
-            if (!log || !log.id) return;
-
-            const strId = String(log.id);
-
-            // Separate into Quiz vs Game Logs
-            if (log.logCategory === 'QUIZ' || log.type === 'pre' || log.type === 'post') {
-              if (!quizIds.has(strId)) {
-                localQuizLogs.push(log);
-                quizIds.add(strId);
-              }
-            } else if (log.logCategory === 'GAME' || log.totalScore !== undefined) {
-              if (!gameIds.has(strId)) {
-                localGameLogs.push(log);
-                gameIds.add(strId);
-              }
-            }
-          });
-
-          localStorage.setItem(this.STORAGE_KEY_HISTORY, JSON.stringify(localGameLogs));
-          localStorage.setItem(this.STORAGE_KEY_QUIZ, JSON.stringify(localQuizLogs));
-        }
+        processData(cloudData);
+        return;
       }
     } catch (e) {
-      console.warn('Could not fetch cloud logs for auto-sync', e);
+      console.warn('Fetch blocked by browser shields, trying JSONP fallback...', e);
     }
+
+    // Method 2: JSONP Fallback for Brave Browser Shields & iOS Safari Strict CORS
+    return new Promise((resolve) => {
+      const callbackName = 'cb_cloud_sync_' + Date.now();
+      window[callbackName] = (data) => {
+        try {
+          processData(data);
+        } catch (err) {}
+        delete window[callbackName];
+        if (script.parentNode) script.parentNode.removeChild(script);
+        resolve();
+      };
+
+      const script = document.createElement('script');
+      const sep = cloudUrl.includes('?') ? '&' : '?';
+      script.src = `${cloudUrl}${sep}callback=${callbackName}&_t=${Date.now()}`;
+      script.onerror = () => {
+        delete window[callbackName];
+        if (script.parentNode) script.parentNode.removeChild(script);
+        resolve();
+      };
+      document.body.appendChild(script);
+    });
   }
 
   clearHistory() {

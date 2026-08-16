@@ -1332,4 +1332,70 @@ body::before {
   to { opacity: 1; }
 }
 
+/* ==========================================================================
+   PRINT REPORT STYLING (ป้องกันระบบเด้งออก/ปิดระบบเมื่อกดพิมพ์บนโน้ตบุ๊ก)
+   ========================================================================== */
+@media print {
+  body {
+    background: #FFF !important;
+    color: #000 !important;
+  }
+
+  body > *:not(#modal-teacher-dashboard) {
+    display: none !important;
+  }
+
+  #modal-teacher-dashboard {
+    position: static !important;
+    background: #FFF !important;
+    color: #000 !important;
+    display: block !important;
+    width: 100% !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  .modal-content {
+    background: #FFF !important;
+    color: #000 !important;
+    border: none !important;
+    box-shadow: none !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    padding: 0 !important;
+  }
+
+  .btn-modal-close,
+  .teacher-tab-btn,
+  .cloud-config-box,
+  .dashboard-actions,
+  button {
+    display: none !important;
+  }
+
+  .analytics-table {
+    color: #000 !important;
+    background: #FFF !important;
+    border: 1px solid #000 !important;
+    width: 100% !important;
+    border-collapse: collapse !important;
+    margin-bottom: 20px !important;
+  }
+
+  .analytics-table th {
+    background: #EEEEEE !important;
+    color: #000 !important;
+    border: 1px solid #000 !important;
+    font-size: 10pt !important;
+    padding: 6px !important;
+  }
+
+  .analytics-table td {
+    color: #000 !important;
+    border: 1px solid #000 !important;
+    font-size: 10pt !important;
+    padding: 6px !important;
+  }
+}
+
 
