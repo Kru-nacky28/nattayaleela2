@@ -872,7 +872,7 @@ class GameApp {
 
     const utterance = new SpeechSynthesisUtterance(textToRead);
     utterance.lang = 'th-TH';
-    utterance.rate = 0.5; // ความเร็ว 0.5x ช้า ชัดเจน ฟังสบายตามคำขอ
+    utterance.rate = 1.5; // ความเร็ว 1.5x รวดเร็ว กระชับตามคำขอ
 
     window.speechSynthesis.speak(utterance);
   }
