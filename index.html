@@ -41,16 +41,21 @@
     <!-- SCREEN 1: START / STUDENT LOGIN -->
     <section id="screen-start" class="screen active">
       <div class="start-container">
-        <h2 class="start-title">ยินดีต้อนรับเข้าสู่เกม AI</h2>
+        <h2 class="start-title">ยินดีต้อนรับเข้าสู่ระบบเรียนรู้ AI</h2>
         <p class="start-desc">
           การพัฒนาทักษะการปฏิบัตินาฏยศัพท์ด้วยเกม AI ปัญญาประดิษฐ์<br>
           โดย คุณครูนรีรัตน์  ธนาวัชรากุล<br>
-          ให้นักเรียนพิมพ์ชื่อ-นามสกุล ก่อนกดเริ่มเล่นเกม
+          ให้นักเรียนพิมพ์ชื่อ-นามสกุล ก่อนทำแบบทดสอบหรือเริ่มเล่นเกม
         </p>
 
         <div class="input-group">
           <label for="input-student-name">👤 ชื่อ - นามสกุล นักเรียน (ม.1):</label>
           <input type="text" id="input-student-name" class="input-control" placeholder="เช่น ด.ช. สมชาย ใจดี ม.1/1 เลขที่ 5" autofocus />
+        </div>
+
+        <!-- Student Quiz Status Banner -->
+        <div id="student-quiz-status-banner" class="student-status-banner" style="display: none;">
+          <div id="student-status-text">📊 สถานะการเรียนรู้: กำลังโหลดข้อมูล...</div>
         </div>
 
         <div style="text-align: left; margin-bottom: 8px; font-weight: 600; color: var(--thai-gold-light); font-size: 0.9rem;">
@@ -67,9 +72,20 @@
           <div class="posture-badge">8. จีบล่อแก้ว</div>
         </div>
 
-        <button id="btn-start-game" class="btn-gold" style="width: 100%; justify-content: center; font-size: 1.3rem; padding: 14px;">
-          🚀 เริ่มเล่นเกม (Start Game)
-        </button>
+        <!-- Main Action Buttons Grid -->
+        <div class="start-action-grid">
+          <button id="btn-start-pretest" class="btn-quiz btn-pretest">
+            📝 1. ทำแบบทดสอบก่อนเรียน<br><small>(Pre-Test 5 ข้อ)</small>
+          </button>
+          
+          <button id="btn-start-game" class="btn-gold btn-game-main">
+            🚀 2. เริ่มเล่นเกม AI<br><small>(AI Motion Detection Game)</small>
+          </button>
+          
+          <button id="btn-start-posttest" class="btn-quiz btn-posttest">
+            📝 3. ทำแบบทดสอบหลังเรียน<br><small>(Post-Test 5 ข้อ)</small>
+          </button>
+        </div>
       </div>
     </section>
 
@@ -192,12 +208,123 @@
           🏆 ระดับผลการประเมิน: ดีเยี่ยม (ผ่านเกณฑ์ PA 100%)
         </div>
 
-        <button id="btn-play-again" class="btn-gold" style="width: 100%; justify-content: center; font-size: 1.2rem; padding: 14px;">
-          🔄 เล่นใหม่อีกครั้ง (Play Again)
-        </button>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px;">
+          <button id="btn-goto-posttest" class="btn-quiz btn-posttest" style="font-size: 1rem; padding: 12px;">
+            📝 ทำแบบทดสอบหลังเรียน (Post-Test)
+          </button>
+          <button id="btn-play-again" class="btn-gold" style="font-size: 1rem; padding: 12px; justify-content: center;">
+            🔄 เล่นเกมใหม่อีกครั้ง
+          </button>
+        </div>
       </div>
     </section>
 
+  </div>
+
+  <!-- ONLINE INTERACTIVE QUIZ MODAL (PRE-TEST & POST-TEST) -->
+  <div id="modal-quiz" class="modal-backdrop">
+    <div class="modal-box quiz-modal-box">
+      <div class="modal-header">
+        <div>
+          <h2 id="quiz-modal-title">📝 แบบทดสอบก่อนเรียน (Pre-Test)</h2>
+          <div id="quiz-student-subtitle" class="quiz-student-sub">นักเรียน: -</div>
+        </div>
+        <button id="btn-close-quiz-modal" type="button" class="btn-close">&times;</button>
+      </div>
+
+      <!-- Quiz Top Status & Progress Bar -->
+      <div class="quiz-status-header">
+        <div class="quiz-progress-pill">
+          📌 ข้อที่ <span id="quiz-curr-idx">1</span> / <span id="quiz-total-idx">5</span>
+        </div>
+        <div class="quiz-progress-track">
+          <div id="quiz-progress-bar-fill" class="quiz-progress-fill"></div>
+        </div>
+      </div>
+
+      <!-- Question Card Container -->
+      <div class="quiz-question-card">
+        <div id="quiz-question-text" class="quiz-question-title">
+          1. การตั้งวงระดับให้ปลายนิ้วมืออยู่ระดับคิ้ว จัดเป็นการตั้งวงระดับใด?
+        </div>
+        <div id="quiz-options-container" class="quiz-options-grid">
+          <!-- Rendered dynamically -->
+        </div>
+      </div>
+
+      <!-- Footer Action Buttons -->
+      <div class="quiz-footer-actions">
+        <button id="btn-quiz-prev" type="button" class="btn-quiz-nav" disabled>
+          ⬅️ ข้อก่อนหน้า
+        </button>
+        <button id="btn-quiz-next" type="button" class="btn-gold quiz-next-btn">
+          ข้อถัดไป ➡️
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- QUIZ RESULTS & DETAILED EXPLANATION MODAL -->
+  <div id="modal-quiz-result" class="modal-backdrop">
+    <div class="modal-box quiz-result-modal-box">
+      <div class="modal-header">
+        <h2 id="quiz-result-header-title">🏆 ผลการทำแบบทดสอบ</h2>
+        <button id="btn-close-quiz-result" type="button" class="btn-close">&times;</button>
+      </div>
+
+      <div id="quiz-result-student-name" class="quiz-result-name">
+        นักเรียน: -
+      </div>
+
+      <!-- Score Card Box -->
+      <div class="quiz-result-score-card">
+        <div class="quiz-score-circle">
+          <div id="quiz-result-score-num" class="quiz-score-num">0 / 5</div>
+          <div class="quiz-score-label">คะแนนที่ได้</div>
+        </div>
+        <div class="quiz-result-info">
+          <div id="quiz-result-badge" class="quiz-result-badge">ระดับผลการประเมิน: -</div>
+          <div id="quiz-result-message" class="quiz-result-message">
+            บันทึกคะแนนเรียบร้อยแล้ว
+          </div>
+        </div>
+      </div>
+
+      <!-- PA Pre vs Post Comparison Card (เมื่อทำครบทั้งก่อนและหลังเรียน) -->
+      <div id="quiz-comparison-card" class="quiz-comparison-card" style="display: none;">
+        <h3 style="color: var(--thai-gold-light); margin: 0 0 10px 0; font-size: 1.05rem;">
+          📈 สรุปพัฒนาการการเรียนรู้ (PA Development Progress)
+        </h3>
+        <div class="comp-grid">
+          <div class="comp-box">
+            <div class="comp-label">ก่อนเรียน (Pre-Test)</div>
+            <div id="comp-pre-score" class="comp-num" style="color: #FFB74D;">- / 5</div>
+          </div>
+          <div class="comp-box">
+            <div class="comp-label">หลังเรียน (Post-Test)</div>
+            <div id="comp-post-score" class="comp-num" style="color: #00E676;">- / 5</div>
+          </div>
+          <div class="comp-box">
+            <div class="comp-label">พัฒนาการ (% เก่งขึ้น)</div>
+            <div id="comp-diff-score" class="comp-num" style="color: #FFD700;">-</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Detailed Answer Explanations List -->
+      <h3 style="color: var(--thai-gold-light); font-size: 1.05rem; margin: 18px 0 10px 0; text-align: left;">
+        💡 เฉลยคำตอบและคำอธิบายอย่างละเอียด:
+      </h3>
+      <div id="quiz-explanations-list" class="quiz-explanations-list">
+        <!-- Rendered dynamically -->
+      </div>
+
+      <div style="margin-top: 20px;">
+        <button id="btn-quiz-result-continue" class="btn-gold" style="width: 100%; justify-content: center; font-size: 1.15rem; padding: 12px;">
+          🚀 ดำเนินการต่อ (Continue)
+        </button>
+      </div>
+    </div>
   </div>
 
   <!-- TEACHER MODE MODALS -->
@@ -225,7 +352,7 @@
 
   <!-- 2. Teacher Dashboard & Analytics Backend Modal -->
   <div id="modal-teacher-dashboard" class="modal-backdrop">
-    <div class="modal-box" style="max-width: 900px;">
+    <div class="modal-box" style="max-width: 950px;">
       <div class="modal-header">
         <h2>⚙️ ระบบหลังบ้านคุณครูนรีรัตน์ - สถิติ & จัดการภาพต้นฉบับ</h2>
         <button id="btn-close-dashboard-modal" type="button" class="btn-close">&times;</button>
@@ -268,9 +395,27 @@
 
       <!-- TAB 2: STUDENT ANALYTICS & PA REPORT BACKEND -->
       <div id="teacher-tab-analytics" class="teacher-tab-content" style="display: none;">
+        <!-- Cloud Database / Google Sheet Webhook Sync Card -->
+        <div style="background: rgba(15,2,5,0.8); border: 1px solid var(--thai-gold); border-radius: 12px; padding: 12px 16px; margin-bottom: 16px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+            <div>
+              <strong style="color: var(--thai-gold-light); font-size: 0.95rem;">🌐 เชื่อมต่อสถิติออนไลน์รวมจากทุกเครื่อง (Google Sheet / Cloud Sync)</strong>
+              <div style="font-size: 0.8rem; color: #BBB;">ใส่ WebApp URL จาก Google Sheet เพื่อให้สถิตินักเรียนจากมือถือทุกเครื่องไหลมารวมที่ครูอัตโนมัติ</div>
+            </div>
+            <div style="display: flex; gap: 6px; flex-grow: 1; max-width: 450px;">
+              <input type="text" id="input-cloud-url" class="input-control" placeholder="วางลิงก์ Google Sheet WebApp URL ตรงนี้..." style="font-size: 0.8rem; padding: 6px 10px;" />
+              <button type="button" class="btn-gold" style="padding: 6px 12px; font-size: 0.8rem; white-space: nowrap;" onclick="window.app.saveCloudConfig()">💾 บันทึก</button>
+            </div>
+          </div>
+        </div>
+
         <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 16px;">
-          <h3 style="color: var(--thai-gold-light); font-size: 1.1rem;">📈 รายงานสถิติคะแนนและอัตราพัฒนาการเรียนรู้รายบุคคล</h3>
-          <div style="display: flex; gap: 8px;">
+          <h3 style="color: var(--thai-gold-light); font-size: 1.1rem; margin: 0;">📈 รายงานสถิติคะแนนก่อน-หลังเรียน และอัตราพัฒนาการเรียนรู้ (PA)</h3>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <label class="btn-gold" style="padding: 6px 12px; font-size: 0.82rem; cursor: pointer; background: linear-gradient(135deg, #0288D1 0%, #01579B 100%); color: #FFF;">
+              📤 นำเข้าไฟล์สถิติมือถืออื่น
+              <input type="file" accept=".json,.csv" style="display: none;" onchange="window.app.handleImportLogs(this)" />
+            </label>
             <button type="button" class="btn-gold" style="padding: 6px 14px; font-size: 0.85rem;" onclick="window.app.printAnalyticsReport()">
               🖨️ พิมพ์รายงาน / ปริ้นท์ (Print PDF)
             </button>
@@ -290,13 +435,13 @@
               <tr>
                 <th>#</th>
                 <th>ชื่อ - นามสกุล นักเรียน</th>
-                <th>จำนวนครั้งที่เล่น</th>
-                <th>คะแนนครั้งแรก</th>
-                <th>คะแนนล่าสุด</th>
-                <th>คะแนนสูงสุด</th>
-                <th>พัฒนาการ (% เก่งขึ้น)</th>
+                <th>ก่อนเรียน (Pre /5)</th>
+                <th>หลังเรียน (Post /5)</th>
+                <th>พัฒนาการทฤษฎี (%)</th>
+                <th>ครั้งที่เล่นเกม</th>
+                <th>คะแนนเกม AI</th>
                 <th>ผลการประเมิน PA</th>
-                <th>วันที่เล่นล่าสุด</th>
+                <th>วันที่บันทึกล่าสุด</th>
               </tr>
             </thead>
             <tbody id="analytics-table-body">
@@ -312,6 +457,7 @@
   <!-- JavaScript Modules -->
   <script src="js/audio.js"></script>
   <script src="js/teacher-store.js"></script>
+  <script src="js/quiz-data.js"></script>
   <script src="js/pose-detector.js"></script>
   <script src="js/app.js"></script>
 

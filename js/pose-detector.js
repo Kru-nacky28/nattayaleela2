@@ -227,95 +227,103 @@ class PoseDetector {
     let accuracyScore = 0;
 
     switch (postureId) {
-      case 1: // ตั้งวงบน (Tang Wong Bon) - Wrists elevated near eyebrow/head level
-        const isHighLeft = leftWristRelY < -0.1 || leftWrist.y < shoulderMidY - 0.04;
-        const isHighRight = rightWristRelY < -0.1 || rightWrist.y < shoulderMidY - 0.04;
+      case 1: // 1. ตั้งวงบน (Tang Wong Bon) - Must elevate wrists to eyebrow / top head level
+        const isHighLeft = leftWristRelY < -0.18 || (leftWrist.y <= nose.y + 0.05);
+        const isHighRight = rightWristRelY < -0.18 || (rightWrist.y <= nose.y + 0.05);
         if (isHighLeft || isHighRight) {
           isMatched = true;
           accuracyScore = 95;
-          message = 'ถูกต้อง! ท่าตั้งวงบน';
+          message = 'แสกนตรงเงาแล้ว! ท่าตั้งวงบน';
         } else {
-          message = 'ยกแขนวงให้สูงขึ้น ระดับคิ้วหรือศีรษะ';
+          message = 'ยกแขนวงให้สูงขึ้น ทาบระดับคิ้วหรือศีรษะ';
         }
         break;
 
-      case 2: // ตั้งวงกลาง (Tang Wong Klang) - Wrists around shoulder level
-        const isMidLeft = Math.abs(leftWristRelY) <= 0.48 || Math.abs(leftWrist.y - shoulderMidY) < 0.25;
-        const isMidRight = Math.abs(rightWristRelY) <= 0.48 || Math.abs(rightWrist.y - shoulderMidY) < 0.25;
-        if (isMidLeft || isMidRight) {
+      case 2: // 2. ตั้งวงกลาง (Tang Wong Klang) - Must extend arm out at shoulder level
+        const isMidLeftHeight = Math.abs(leftWristRelY) <= 0.35;
+        const isMidRightHeight = Math.abs(rightWristRelY) <= 0.35;
+        const isArmExtendedLeft = Math.abs(leftWrist.x - leftShoulder.x) > 0.08;
+        const isArmExtendedRight = Math.abs(rightWrist.x - rightShoulder.x) > 0.08;
+
+        if ((isMidLeftHeight && isArmExtendedLeft) || (isMidRightHeight && isArmExtendedRight)) {
           isMatched = true;
           accuracyScore = 92;
-          message = 'ถูกต้อง! ท่าตั้งวงกลาง';
+          message = 'แสกนตรงเงาแล้ว! ท่าตั้งวงกลาง';
         } else {
-          message = 'กางแขนออกข้างลำตัว ให้ปลายนิ้วอยู่ระดับไหล่';
+          message = 'กางแขนออกข้างลำตัว ทาบให้ตรงระดับไหล่';
         }
         break;
 
-      case 3: // ตั้งวงล่าง (Tang Wong Lang) - Wrists low around abdomen/navel
-        const isLowLeft = leftWristRelY > 0.12 || leftWrist.y > shoulderMidY + 0.06;
-        const isLowRight = rightWristRelY > 0.12 || rightWrist.y > shoulderMidY + 0.06;
+      case 3: // 3. ตั้งวงล่าง (Tang Wong Lang) - Must lower wrists to abdomen / navel level
+        const isLowLeft = leftWristRelY > 0.18 || (leftWrist.y > shoulderMidY + 0.08);
+        const isLowRight = rightWristRelY > 0.18 || (rightWrist.y > shoulderMidY + 0.08);
         if (isLowLeft || isLowRight) {
           isMatched = true;
           accuracyScore = 90;
-          message = 'ถูกต้อง! ท่าตั้งวงล่าง';
+          message = 'แสกนตรงเงาแล้ว! ท่าตั้งวงล่าง';
         } else {
-          message = 'ทอดวงแขนลงด้านล่าง ระดับชายพกหรือหน้าท้อง';
+          message = 'ทอดวงแขนลงด้านล่าง ทาบระดับชายพก/หน้าท้อง';
         }
         break;
 
-      case 4: // จีบคว่ำ (Jeeb Khwam) - Jeeb gesture with wrist turned down
-        const isJeebHand4 = hasJeebPinch || leftWristRelY > -0.3 || rightWristRelY > -0.3;
-        if (isJeebHand4) {
+      case 4: // 4. จีบคว่ำ (Jeeb Khwam) - Arm MUST be at chest height AND wrist/fingers turned down
+        const isArmAtChestLevel4 = (leftWristRelY >= -0.4 && leftWristRelY <= 0.35) || (rightWristRelY >= -0.4 && rightWristRelY <= 0.35);
+        const isWristTurnedDown = !handsUpward || hasJeebPinch;
+
+        if (isArmAtChestLevel4 && isWristTurnedDown) {
           isMatched = true;
           accuracyScore = 93;
-          message = 'ถูกต้อง! ท่าจีบคว่ำ';
+          message = 'แสกนตรงเงาแล้ว! ท่าจีบคว่ำ';
         } else {
-          message = 'ใช้นิ้วชี้แตะหัวแม่มือ แล้วพลิกข้อมือคว่ำลง';
+          message = 'ยกแขนทาบระดับอก/เอว แล้วพลิกข้อมือคว่ำลง';
         }
         break;
 
-      case 5: // จีบหงาย (Jeeb Ngai) - Jeeb gesture with wrist turned up
-        const isJeebHand5 = hasJeebPinch || handsUpward || leftWristRelY > -0.3 || rightWristRelY > -0.3;
-        if (isJeebHand5) {
+      case 5: // 5. จีบหงาย (Jeeb Ngai) - Arm MUST be at chest height AND wrist/fingers turned up
+        const isArmAtChestLevel5 = (leftWristRelY >= -0.4 && leftWristRelY <= 0.35) || (rightWristRelY >= -0.4 && rightWristRelY <= 0.35);
+        const isWristTurnedUp = handsUpward || hasJeebPinch;
+
+        if (isArmAtChestLevel5 && isWristTurnedUp) {
           isMatched = true;
           accuracyScore = 94;
-          message = 'ถูกต้อง! ท่าจีบหงาย';
+          message = 'แสกนตรงเงาแล้ว! ท่าจีบหงาย';
         } else {
-          message = 'จีบนิ้วหงายขึ้นด้านบน พลิกข้อมือหงายขึ้น';
+          message = 'ยกแขนทาบระดับอก/เอว หงายจีบพลิกข้อมือขึ้น';
         }
         break;
 
-      case 6: // จีบปรกข้าง (Jeeb Prok Khang) - Jeeb near side of head
-        const isProkSideLeft = leftWristRelY < -0.1;
-        const isProkSideRight = rightWristRelY < -0.1;
-        if (isProkSideLeft || isProkSideRight || hasJeebPinch) {
+      case 6: // 6. จีบปรกข้าง (Jeeb Prok Khang) - Wrist MUST be raised to side of head (temple/ear)
+        const isProkSideLeft = (leftWristRelY < -0.12) && (Math.abs(leftWrist.x - nose.x) < 0.38);
+        const isProkSideRight = (rightWristRelY < -0.12) && (Math.abs(rightWrist.x - nose.x) < 0.38);
+        if (isProkSideLeft || isProkSideRight) {
           isMatched = true;
           accuracyScore = 96;
-          message = 'ถูกต้อง! ท่าจีบปรกข้าง';
+          message = 'แสกนตรงเงาแล้ว! ท่าจีบปรกข้าง';
         } else {
-          message = 'ยกจีบขึ้นข้างศีรษะ บริเวณขมับหรือข้างหู';
+          message = 'ยกจีบขึ้นทาบข้างศีรษะ บริเวณขมับหรือข้างหู';
         }
         break;
 
-      case 7: // จีบส่งหลัง (Jeeb Song Lang) - Arm pushed behind body
-        const isArmBackLeft = (leftWrist.x < leftShoulder.x) || (leftWristRelY > 0.05);
-        const isArmBackRight = (rightWrist.x > rightShoulder.x) || (rightWristRelY > 0.05);
+      case 7: // 7. จีบส่งหลัง (Jeeb Song Lang) - Arm MUST be extended straight behind torso
+        const isArmBackLeft = (leftWrist.x < leftShoulder.x - 0.05);
+        const isArmBackRight = (rightWrist.x > rightShoulder.x + 0.05);
         if (isArmBackLeft || isArmBackRight) {
           isMatched = true;
           accuracyScore = 91;
-          message = 'ถูกต้อง! ท่าจีบส่งหลัง';
+          message = 'แสกนตรงเงาแล้ว! ท่าจีบส่งหลัง';
         } else {
-          message = 'ส่งแขนตึงไปด้านหลังลำตัว พลิกจีบส่งไปข้างหลัง';
+          message = 'ส่งแขนตึงไปด้านหลังลำตัว ทาบจีบส่งไปข้างหลัง';
         }
         break;
 
-      case 8: // จีบล่อแก้ว (Jeeb LOR Kaew) - Thumb on middle nail
-        if (hasLorKaewPinch || hasJeebPinch || Math.abs(leftWristRelY) < 0.5 || Math.abs(rightWristRelY) < 0.5) {
+      case 8: // 8. จีบล่อแก้ว (Jeeb LOR Kaew) - Hand MUST be at chest height holding Lor Kaew gesture
+        const isArmAtChestLevel8 = Math.abs(leftWristRelY) <= 0.4 || Math.abs(rightWristRelY) <= 0.4;
+        if (isArmAtChestLevel8 && (hasLorKaewPinch || hasJeebPinch)) {
           isMatched = true;
           accuracyScore = 95;
-          message = 'ถูกต้อง! ท่าจีบล่อแก้ว';
+          message = 'แสกนตรงเงาแล้ว! ท่าจีบล่อแก้ว';
         } else {
-          message = 'ใช้นิ้วหัวแม่มือกดทับเล็บนิ้วกลาง นิ้วชี้ดัดงอนขึ้น';
+          message = 'ยกมือทาบระดับอก นิ้วหัวแม่มือกดทับเล็บนิ้วกลาง';
         }
         break;
 

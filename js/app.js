@@ -11,6 +11,11 @@ class GameApp {
     this.skippedCount = 0;
     this.currentPosture = null;
 
+    // Quiz Controller State
+    this.currentQuizType = 'pre'; // 'pre' หรือ 'post'
+    this.currentQuizIndex = 0;
+    this.quizAnswers = [];
+
     // Timers
     this.gameTimer = null;
     this.timeLeft = 180; // 180 seconds game countdown
@@ -39,6 +44,31 @@ class GameApp {
     this.btnSwitchCamera = document.getElementById('btn-switch-camera');
     this.btnSkip = document.getElementById('btn-skip');
     this.btnPlayAgain = document.getElementById('btn-play-again');
+
+    // Quiz Controls & Status
+    this.btnStartPretest = document.getElementById('btn-start-pretest');
+    this.btnStartPosttest = document.getElementById('btn-start-posttest');
+    this.btnGotoPosttest = document.getElementById('btn-goto-posttest');
+    this.studentQuizStatusBanner = document.getElementById('student-quiz-status-banner');
+    this.studentStatusText = document.getElementById('student-status-text');
+
+    // Quiz Modals
+    this.modalQuiz = document.getElementById('modal-quiz');
+    this.modalQuizResult = document.getElementById('modal-quiz-result');
+    this.btnCloseQuizModal = document.getElementById('btn-close-quiz-modal');
+    this.btnCloseQuizResult = document.getElementById('btn-close-quiz-result');
+    this.btnQuizResultContinue = document.getElementById('btn-quiz-result-continue');
+
+    // Quiz Inner Elements
+    this.quizModalTitle = document.getElementById('quiz-modal-title');
+    this.quizStudentSubtitle = document.getElementById('quiz-student-subtitle');
+    this.quizCurrIdx = document.getElementById('quiz-curr-idx');
+    this.quizTotalIdx = document.getElementById('quiz-total-idx');
+    this.quizProgressBarFill = document.getElementById('quiz-progress-bar-fill');
+    this.quizQuestionText = document.getElementById('quiz-question-text');
+    this.quizOptionsContainer = document.getElementById('quiz-options-container');
+    this.btnQuizPrev = document.getElementById('btn-quiz-prev');
+    this.btnQuizNext = document.getElementById('btn-quiz-next');
 
     // Game Elements
     this.videoElement = document.getElementById('webcam-video');
@@ -81,6 +111,52 @@ class GameApp {
       this.btnStartGame.addEventListener('click', () => this.startGame());
     }
 
+    // Quiz Triggers
+    if (this.btnStartPretest) {
+      this.btnStartPretest.addEventListener('click', () => this.startQuiz('pre'));
+    }
+    if (this.btnStartPosttest) {
+      this.btnStartPosttest.addEventListener('click', () => this.startQuiz('post'));
+    }
+    if (this.btnGotoPosttest) {
+      this.btnGotoPosttest.addEventListener('click', () => this.startQuiz('post'));
+    }
+
+    // Student Name Input Events
+    if (this.inputStudentName) {
+      const updateBanner = () => this.updateStudentQuizStatusBanner();
+      this.inputStudentName.addEventListener('input', updateBanner);
+      this.inputStudentName.addEventListener('change', updateBanner);
+      this.inputStudentName.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') this.startGame();
+      });
+    }
+
+    // Quiz Navigation
+    if (this.btnQuizPrev) {
+      this.btnQuizPrev.addEventListener('click', () => this.prevQuizQuestion());
+    }
+    if (this.btnQuizNext) {
+      this.btnQuizNext.addEventListener('click', () => this.nextQuizQuestion());
+    }
+
+    // Quiz Modal Close Actions
+    if (this.btnCloseQuizModal) {
+      this.btnCloseQuizModal.addEventListener('click', () => {
+        if (this.modalQuiz) this.modalQuiz.classList.remove('active');
+      });
+    }
+    if (this.btnCloseQuizResult) {
+      this.btnCloseQuizResult.addEventListener('click', () => {
+        if (this.modalQuizResult) this.modalQuizResult.classList.remove('active');
+      });
+    }
+    if (this.btnQuizResultContinue) {
+      this.btnQuizResultContinue.addEventListener('click', () => {
+        if (this.modalQuizResult) this.modalQuizResult.classList.remove('active');
+      });
+    }
+
     // Switch Camera Front/Back
     if (this.btnSwitchCamera) {
       this.btnSwitchCamera.addEventListener('click', async () => {
@@ -92,13 +168,6 @@ class GameApp {
         if (window.poseDetector && this.videoElement) {
           await window.poseDetector.startCamera(this.videoElement);
         }
-      });
-    }
-
-    // Enter Key on Student Input
-    if (this.inputStudentName) {
-      this.inputStudentName.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') this.startGame();
       });
     }
 
@@ -568,20 +637,278 @@ class GameApp {
       if (tabBtnImages) tabBtnImages.classList.remove('active');
       if (tabContentAnalytics) tabContentAnalytics.style.display = 'block';
       if (tabContentImages) tabContentImages.style.display = 'none';
+
+      // Load saved Cloud URL into input
+      const inputCloudUrl = document.getElementById('input-cloud-url');
+      if (inputCloudUrl && window.teacherStore) {
+        inputCloudUrl.value = window.teacherStore.getCloudUrl();
+      }
+
       this.renderAnalyticsTable();
     }
   }
 
-  renderAnalyticsTable() {
+  // --- Quiz Methods (แบบทดสอบก่อนเรียน & หลังเรียน) ---
+
+  updateStudentQuizStatusBanner() {
+    if (!this.inputStudentName || !this.studentQuizStatusBanner) return;
+    const name = this.inputStudentName.value.trim();
+
+    if (!name || !window.teacherStore) {
+      this.studentQuizStatusBanner.style.display = 'none';
+      return;
+    }
+
+    const qRes = window.teacherStore.getQuizResultForStudent(name);
+    if (!qRes || (qRes.preScore === null && qRes.postScore === null)) {
+      this.studentQuizStatusBanner.style.display = 'block';
+      this.studentStatusText.innerHTML = `👤 นักเรียน: <strong>${name}</strong> | 📌 แนะนำ: ทำแบบทดสอบก่อนเรียน (Pre-Test) ก่อนเข้าสู่เกม AI`;
+      return;
+    }
+
+    this.studentQuizStatusBanner.style.display = 'block';
+    const preText = qRes.preScore !== null ? `<span style="color:#FFB74D;">ก่อนเรียน: ${qRes.preScore}/5</span>` : 'ก่อนเรียน: ยังไม่ได้ทำ';
+    const postText = qRes.postScore !== null ? `<span style="color:#00E676;">หลังเรียน: ${qRes.postScore}/5</span>` : 'หลังเรียน: ยังไม่ได้ทำ';
+
+    let impText = '';
+    if (qRes.preScore !== null && qRes.postScore !== null) {
+      const diff = qRes.postScore - qRes.preScore;
+      const pct = Math.round((diff / 5) * 100);
+      const sign = pct >= 0 ? '+' : '';
+      impText = ` | 🏆 พัฒนาการ: <strong style="color:#FFD700;">${sign}${pct}%</strong>`;
+    }
+
+    this.studentStatusText.innerHTML = `👤 นักเรียน: <strong>${name}</strong> | ${preText} | ${postText}${impText}`;
+  }
+
+  startQuiz(type) {
+    if (!this.inputStudentName) return;
+    const sName = this.inputStudentName.value.trim();
+    if (!sName) {
+      alert('โปรดกรอก ชื่อ-นามสกุล ของนักเรียนก่อนทำแบบทดสอบ');
+      this.inputStudentName.focus();
+      return;
+    }
+
+    if (window.soundEngine) window.soundEngine.playClick();
+
+    this.currentQuizType = type; // 'pre' หรือ 'post'
+    this.currentQuizIndex = 0;
+    this.quizAnswers = new Array(window.QUIZ_QUESTIONS.length).fill(null);
+
+    if (this.quizModalTitle) {
+      this.quizModalTitle.innerHTML = type === 'pre' ? '📝 แบบทดสอบก่อนเรียน (Pre-Test)' : '📝 แบบทดสอบหลังเรียน (Post-Test)';
+    }
+    if (this.quizStudentSubtitle) {
+      this.quizStudentSubtitle.innerHTML = `นักเรียน: <strong>${sName}</strong> (ม.1)`;
+    }
+
+    if (this.modalQuiz) this.modalQuiz.classList.add('active');
+    this.renderQuizQuestion();
+  }
+
+  renderQuizQuestion() {
+    const q = window.QUIZ_QUESTIONS[this.currentQuizIndex];
+    if (!q) return;
+
+    if (this.quizCurrIdx) this.quizCurrIdx.innerText = this.currentQuizIndex + 1;
+    if (this.quizTotalIdx) this.quizTotalIdx.innerText = window.QUIZ_QUESTIONS.length;
+
+    const pct = ((this.currentQuizIndex + 1) / window.QUIZ_QUESTIONS.length) * 100;
+    if (this.quizProgressBarFill) this.quizProgressBarFill.style.width = `${pct}%`;
+
+    if (this.quizQuestionText) this.quizQuestionText.innerText = q.question;
+
+    if (this.quizOptionsContainer) {
+      const selectedOpt = this.quizAnswers[this.currentQuizIndex];
+      this.quizOptionsContainer.innerHTML = q.options.map((optText, optIdx) => {
+        const isSel = selectedOpt === optIdx ? 'selected' : '';
+        return `
+          <button type="button" class="quiz-option-btn ${isSel}" onclick="window.app.selectQuizOption(${optIdx})">
+            ${optText}
+          </button>
+        `;
+      }).join('');
+    }
+
+    if (this.btnQuizPrev) {
+      this.btnQuizPrev.disabled = (this.currentQuizIndex === 0);
+    }
+    if (this.btnQuizNext) {
+      this.btnQuizNext.innerHTML = (this.currentQuizIndex === window.QUIZ_QUESTIONS.length - 1)
+        ? '🚀 ส่งแบบทดสอบ (Submit)'
+        : 'ข้อถัดไป ➡️';
+    }
+  }
+
+  selectQuizOption(optIndex) {
+    if (window.soundEngine) window.soundEngine.playClick();
+    this.quizAnswers[this.currentQuizIndex] = optIndex;
+    this.renderQuizQuestion();
+  }
+
+  nextQuizQuestion() {
+    const selected = this.quizAnswers[this.currentQuizIndex];
+    if (selected === null || selected === undefined) {
+      alert('โปรดเลือกคำตอบก่อนไปยังข้อถัดไป');
+      return;
+    }
+
+    if (window.soundEngine) window.soundEngine.playClick();
+
+    if (this.currentQuizIndex < window.QUIZ_QUESTIONS.length - 1) {
+      this.currentQuizIndex++;
+      this.renderQuizQuestion();
+    } else {
+      this.submitQuiz();
+    }
+  }
+
+  prevQuizQuestion() {
+    if (this.currentQuizIndex > 0) {
+      if (window.soundEngine) window.soundEngine.playClick();
+      this.currentQuizIndex--;
+      this.renderQuizQuestion();
+    }
+  }
+
+  submitQuiz() {
+    const sName = this.inputStudentName.value.trim();
+    let score = 0;
+
+    window.QUIZ_QUESTIONS.forEach((q, idx) => {
+      if (this.quizAnswers[idx] === q.answerIndex) {
+        score++;
+      }
+    });
+
+    if (window.teacherStore) {
+      window.teacherStore.saveQuizResult(sName, this.currentQuizType, score, window.QUIZ_QUESTIONS.length, this.quizAnswers);
+    }
+
+    if (this.modalQuiz) this.modalQuiz.classList.remove('active');
+
+    if (window.soundEngine) {
+      if (score >= 4) window.soundEngine.playFanfare();
+      else window.soundEngine.playBell();
+    }
+
+    this.renderQuizResult(this.currentQuizType, score, this.quizAnswers);
+    this.updateStudentQuizStatusBanner();
+  }
+
+  renderQuizResult(type, score, answers) {
+    const sName = this.inputStudentName ? this.inputStudentName.value.trim() : '';
+
+    const resHeaderTitle = document.getElementById('quiz-result-header-title');
+    if (resHeaderTitle) {
+      resHeaderTitle.innerText = type === 'pre' ? '🏆 ผลการทำแบบทดสอบก่อนเรียน (Pre-Test)' : '🏆 ผลการทำแบบทดสอบหลังเรียน (Post-Test)';
+    }
+
+    const studentNameEl = document.getElementById('quiz-result-student-name');
+    if (studentNameEl) {
+      studentNameEl.innerHTML = `นักเรียน: <strong>${sName}</strong> (ม.1)`;
+    }
+
+    const scoreNumEl = document.getElementById('quiz-result-score-num');
+    if (scoreNumEl) scoreNumEl.innerText = `${score} / 5`;
+
+    const badgeEl = document.getElementById('quiz-result-badge');
+    const msgEl = document.getElementById('quiz-result-message');
+
+    let levelText = 'ควรปรับปรุง';
+    let badgeColor = '#FF5252';
+    if (score === 5) { levelText = 'ดีเยี่ยม (100%)'; badgeColor = '#00E676'; }
+    else if (score >= 4) { levelText = 'ดีมาก (80%)'; badgeColor = '#00E676'; }
+    else if (score >= 3) { levelText = 'ผ่านเกณฑ์ PA (60%)'; badgeColor = '#FFD700'; }
+
+    if (badgeEl) {
+      badgeEl.innerText = `ระดับผลการประเมิน: ${levelText}`;
+      badgeEl.style.color = badgeColor;
+      badgeEl.style.borderColor = badgeColor;
+    }
+
+    if (msgEl) {
+      if (type === 'pre') {
+        msgEl.innerText = 'บันทึกคะแนนทดสอบก่อนเรียนเรียบร้อยแล้ว! พร้อมฝึกปฏิบัตินาฏยศัพท์ด้วยเกม AI แล้วครับ';
+      } else {
+        msgEl.innerText = 'บันทึกคะแนนทดสอบหลังเรียนเรียบร้อยแล้ว! สามารถตรวจสอบพัฒนาการการเรียนรู้ของคุณด้านล่างนี้';
+      }
+    }
+
+    // PA Comparison Card
+    const compCard = document.getElementById('quiz-comparison-card');
+    const preScoreEl = document.getElementById('comp-pre-score');
+    const postScoreEl = document.getElementById('comp-post-score');
+    const diffScoreEl = document.getElementById('comp-diff-score');
+
+    if (window.teacherStore && compCard) {
+      const qRes = window.teacherStore.getQuizResultForStudent(sName);
+      if (qRes && qRes.preScore !== null && qRes.postScore !== null) {
+        compCard.style.display = 'block';
+        if (preScoreEl) preScoreEl.innerText = `${qRes.preScore} / 5`;
+        if (postScoreEl) postScoreEl.innerText = `${qRes.postScore} / 5`;
+
+        const diff = qRes.postScore - qRes.preScore;
+        const pct = Math.round((diff / 5) * 100);
+        const sign = pct >= 0 ? '+' : '';
+        if (diffScoreEl) {
+          diffScoreEl.innerText = `${sign}${pct}% (${sign}${diff})`;
+          diffScoreEl.style.color = pct >= 0 ? '#00E676' : '#FF5252';
+        }
+      } else {
+        compCard.style.display = 'none';
+      }
+    }
+
+    // Explanations List
+    const expListEl = document.getElementById('quiz-explanations-list');
+    if (expListEl) {
+      expListEl.innerHTML = window.QUIZ_QUESTIONS.map((q, idx) => {
+        const userAnsIdx = answers[idx];
+        const isCorrect = userAnsIdx === q.answerIndex;
+        const userAnsText = userAnsIdx !== null ? q.options[userAnsIdx] : 'ไม่ได้ตอบ';
+        const correctAnsText = q.options[q.answerIndex];
+
+        return `
+          <div class="quiz-exp-item ${isCorrect ? 'correct' : 'incorrect'}">
+            <div class="quiz-exp-question">${q.question}</div>
+            <div class="quiz-exp-badge ${isCorrect ? 'correct' : 'incorrect'}">
+              ${isCorrect ? '✅ ตอบถูกต้อง (+1 คะแนน)' : '❌ ตอบไม่ถูกต้อง (0 คะแนน)'}
+            </div>
+            <div style="font-size: 0.88rem; color: #DDD;">
+              คำตอบของคุณ: <strong>${userAnsText}</strong>
+              ${!isCorrect ? `<br>คำตอบที่ถูกต้องคือ: <strong style="color:#00E676;">${correctAnsText}</strong>` : ''}
+            </div>
+            <div class="quiz-exp-text">
+              💡 <strong>คำอธิบาย:</strong> ${q.explanation}
+            </div>
+            <div class="quiz-exp-indicator">
+              🎯 ตัวชี้วัด: ${q.indicator}
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    if (this.modalQuizResult) this.modalQuizResult.classList.add('active');
+  }
+
+  async renderAnalyticsTable() {
     const tbody = document.getElementById('analytics-table-body');
     if (!tbody) return;
+
+    // Fetch latest online centralized cloud logs if cloud URL is connected
+    if (window.teacherStore) {
+      await window.teacherStore.fetchCloudStudentLogs();
+    }
 
     const stats = window.teacherStore.getStudentSummaryStats();
     if (stats.length === 0) {
       tbody.innerHTML = `
         <tr>
           <td colspan="9" style="text-align: center; color: #BBB; padding: 24px;">
-            ยังไม่มีประวัติสถิติการเล่นของนักเรียนในขณะนี้
+            ยังไม่มีประวัติสถิติการเล่นของนักเรียนในขณะนี้ (หากมีนักเรียนเล่นจากมือถืออื่น สามารถเชื่อมต่อ Google Sheet เพื่อรวมสถิติอัตโนมัติได้)
           </td>
         </tr>
       `;
@@ -589,22 +916,63 @@ class GameApp {
     }
 
     tbody.innerHTML = stats.map((s, idx) => {
-      const impColor = s.improvement > 0 ? '#00E676' : (s.improvement < 0 ? '#FF5252' : '#FFD700');
-      const impSign = s.improvement > 0 ? '+' : '';
+      const impColor = s.quizImprovementVal > 0 ? '#00E676' : (s.quizImprovementVal < 0 ? '#FF5252' : '#FFD700');
       return `
         <tr>
           <td>${idx + 1}</td>
           <td><strong>${s.name}</strong></td>
+          <td style="color: #FFB74D; font-weight: 600;">${s.preScore !== '-' ? s.preScore + ' / 5' : '-'}</td>
+          <td style="color: #00E676; font-weight: 600;">${s.postScore !== '-' ? s.postScore + ' / 5' : '-'}</td>
+          <td style="color: ${impColor}; font-weight: 700;">${s.quizImprovementText}</td>
           <td>${s.playCount} ครั้ง</td>
-          <td>${s.firstScore} คะแนน</td>
-          <td>${s.latestScore} คะแนน</td>
-          <td style="color: #FFD700; font-weight: 700;">${s.bestScore} คะแนน</td>
-          <td style="color: ${impColor}; font-weight: 700;">${impSign}${s.improvement}% (เก่งขึ้น)</td>
+          <td style="color: #FFD700; font-weight: 700;">${s.latestGameScore} คะแนน</td>
           <td><span style="padding: 2px 8px; border-radius: 6px; background: rgba(0,230,118,0.15); color: #00E676; border: 1px solid #00E676; font-size: 0.8rem;">${s.paResult}</span></td>
           <td style="font-size: 0.82rem; color: #BBB;">${s.lastPlayDate}</td>
         </tr>
       `;
     }).join('');
+  }
+
+  saveCloudConfig() {
+    const inputCloudUrl = document.getElementById('input-cloud-url');
+    if (!inputCloudUrl) return;
+
+    const url = inputCloudUrl.value.trim();
+    if (window.teacherStore) {
+      window.teacherStore.saveCloudUrl(url);
+      window.soundEngine.playBell();
+      alert('บันทึกการเชื่อมต่อออนไลน์ส่วนกลาง (Google Sheet WebApp) เรียบร้อยแล้ว! สถิติจากนักเรียนทุกคนทุกเครื่องจะถูกรวบรวมไว้ที่นี่');
+      this.renderAnalyticsTable();
+    }
+  }
+
+  handleImportLogs(inputElement) {
+    const file = inputElement.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const text = e.target.result;
+        const imported = JSON.parse(text);
+        if (Array.isArray(imported)) {
+          const current = window.teacherStore.getHistoryLogs();
+          const existingIds = new Set(current.map(l => l.id));
+          imported.forEach(log => {
+            if (!existingIds.has(log.id)) {
+              current.push(log);
+            }
+          });
+          localStorage.setItem(window.teacherStore.STORAGE_KEY_HISTORY, JSON.stringify(current));
+          this.renderAnalyticsTable();
+          window.soundEngine.playBell();
+          alert('นำเข้าและนำสถิตินักเรียนจากมือถือเครื่องอื่นมารวมเรียบร้อยแล้ว!');
+        }
+      } catch (err) {
+        alert('รูปแบบไฟล์สถิติไม่ถูกต้อง');
+      }
+    };
+    reader.readAsText(file);
   }
 
   handleTeacherImportPack(inputElement) {
@@ -640,7 +1008,10 @@ class GameApp {
 }
 
 // Initialize Global Application
-window.addEventListener('DOMContentLoaded', () => {
+window.addEventListener('DOMContentLoaded', async () => {
   window.app = new GameApp();
+  if (window.teacherStore) {
+    await window.teacherStore.loadServerCustomImages();
+  }
   window.app.showScreen('start');
 });

@@ -84,7 +84,11 @@ class TeacherStore {
     this.STORAGE_KEY_IMAGES = 'natayasapt_custom_images';
     this.STORAGE_KEY_SETTINGS = 'natayasapt_settings';
     this.STORAGE_KEY_HISTORY = 'natayasapt_student_history';
+    this.STORAGE_KEY_QUIZ = 'natayasapt_quiz_results';
+    this.STORAGE_KEY_CLOUD_URL = 'natayasapt_cloud_url';
     this.TEACHER_PASSCODE = '2569';
+    // Public Cloud Analytics Backup Endpoint for seamless multi-device centralization
+    this.DEFAULT_CLOUD_ENDPOINT = 'https://jsonbin.org/natayasapt/scores';
   }
 
   // Verify Passcode
@@ -92,7 +96,7 @@ class TeacherStore {
     return String(inputCode).trim() === this.TEACHER_PASSCODE;
   }
 
-  // --- Student History & Analytics Store (ระบบหลังบ้าน) ---
+  // --- Student History & Analytics Store (ระบบหลังบ้านส่วนกลาง) ---
 
   getHistoryLogs() {
     try {
@@ -103,31 +107,148 @@ class TeacherStore {
     }
   }
 
-  saveStudentLog(name, totalScore, baseScore, bonusScore, completedCount, timeUsed) {
+  // --- Pre-test / Post-test Quiz Store ---
+  getQuizResults() {
+    try {
+      const data = localStorage.getItem(this.STORAGE_KEY_QUIZ);
+      return data ? JSON.parse(data) : [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  saveQuizResult(studentName, type, score, totalQuestions = 5, answers = []) {
+    const newQuizEntry = {
+      id: Date.now(),
+      name: studentName.trim(),
+      type, // 'pre' หรือ 'post'
+      score,
+      totalQuestions,
+      answers,
+      timestamp: new Date().toLocaleString('th-TH', { dateStyle: 'short', timeStyle: 'short' }),
+      device: navigator.userAgent.includes('Mobile') ? 'Mobile' : 'PC'
+    };
+
+    try {
+      const quizLogs = this.getQuizResults();
+      quizLogs.push(newQuizEntry);
+      localStorage.setItem(this.STORAGE_KEY_QUIZ, JSON.stringify(quizLogs));
+    } catch (e) {
+      console.error('Failed quiz log save', e);
+    }
+
+    // Cloud Sync
+    try {
+      this.sendCloudStudentLog(newQuizEntry);
+    } catch (err) {
+      console.warn('Cloud sync offline fallback for quiz', err);
+    }
+
+    return newQuizEntry;
+  }
+
+  getQuizResultForStudent(studentName) {
+    const sName = studentName.trim();
+    const logs = this.getQuizResults().filter(q => q.name === sName);
+    const preLog = logs.filter(q => q.type === 'pre').pop();
+    const postLog = logs.filter(q => q.type === 'post').pop();
+    return {
+      preScore: preLog ? preLog.score : null,
+      postScore: postLog ? postLog.score : null,
+      preDate: preLog ? preLog.timestamp : '',
+      postDate: postLog ? postLog.timestamp : ''
+    };
+  }
+
+  getCloudUrl() {
+    return localStorage.getItem(this.STORAGE_KEY_CLOUD_URL) || '';
+  }
+
+  saveCloudUrl(url) {
+    localStorage.setItem(this.STORAGE_KEY_CLOUD_URL, url.trim());
+  }
+
+  async saveStudentLog(name, totalScore, baseScore, bonusScore, completedCount, timeUsed) {
+    const newLog = {
+      id: Date.now(),
+      name: name.trim(),
+      totalScore,
+      baseScore,
+      bonusScore,
+      completedCount,
+      timeUsed,
+      timestamp: new Date().toLocaleString('th-TH', { dateStyle: 'short', timeStyle: 'short' }),
+      device: navigator.userAgent.includes('Mobile') ? 'Mobile' : 'PC'
+    };
+
+    // 1. Save locally in device storage
     try {
       const logs = this.getHistoryLogs();
-      const newLog = {
-        id: Date.now(),
-        name: name.trim(),
-        totalScore,
-        baseScore,
-        bonusScore,
-        completedCount,
-        timeUsed,
-        timestamp: new Date().toLocaleString('th-TH', { dateStyle: 'short', timeStyle: 'short' })
-      };
       logs.push(newLog);
       localStorage.setItem(this.STORAGE_KEY_HISTORY, JSON.stringify(logs));
-      return newLog;
     } catch (e) {
-      console.error('Failed to save student log', e);
-      return null;
+      console.error('Failed local log save', e);
     }
+
+    // 2. Sync to Central Online Cloud Analytics Server (ส่งสถิติออนไลน์ไปยังหลังบ้านของครู)
+    try {
+      await this.sendCloudStudentLog(newLog);
+    } catch (err) {
+      console.warn('Cloud sync offline fallback', err);
+    }
+
+    return newLog;
+  }
+
+  // Send Student Log to Online Cloud Database / Google Sheet Endpoint
+  async sendCloudStudentLog(logEntry) {
+    const cloudUrl = this.getCloudUrl();
+    if (!cloudUrl) return;
+
+    try {
+      await fetch(cloudUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        mode: 'no-cors',
+        body: JSON.stringify(logEntry)
+      });
+    } catch (e) {
+      console.warn('Failed cloud post', e);
+    }
+  }
+
+  // Fetch Centralized Logs from Cloud Server
+  async fetchCloudStudentLogs() {
+    const cloudUrl = this.getCloudUrl();
+    if (!cloudUrl) return this.getHistoryLogs();
+
+    try {
+      const res = await fetch(cloudUrl);
+      if (res.ok) {
+        const cloudLogs = await res.json();
+        if (Array.isArray(cloudLogs) && cloudLogs.length > 0) {
+          // Merge cloud logs with local logs without duplicates
+          const localLogs = this.getHistoryLogs();
+          const existingIds = new Set(localLogs.map(l => l.id));
+          cloudLogs.forEach(cl => {
+            if (!existingIds.has(cl.id)) {
+              localLogs.push(cl);
+            }
+          });
+          localStorage.setItem(this.STORAGE_KEY_HISTORY, JSON.stringify(localLogs));
+          return localLogs;
+        }
+      }
+    } catch (e) {
+      console.warn('Could not fetch cloud logs', e);
+    }
+    return this.getHistoryLogs();
   }
 
   clearHistory() {
     try {
       localStorage.removeItem(this.STORAGE_KEY_HISTORY);
+      localStorage.removeItem(this.STORAGE_KEY_QUIZ);
       return true;
     } catch (e) {
       return false;
@@ -136,52 +257,75 @@ class TeacherStore {
 
   /**
    * Group logs by student name and calculate summary statistics & % Improvement
-   * พัฒนาการ = ((คะแนนครั้งล่าสุด - คะแนนครั้งแรก) / คะแนนครั้งแรก) * 100
+   * รวมทั้งคะแนนทดสอบก่อนเรียน-หลังเรียน และคะแนนปฏิบัติเกม AI
    */
   getStudentSummaryStats() {
-    const logs = this.getHistoryLogs();
-    const studentMap = {};
+    const gameLogs = this.getHistoryLogs();
+    const quizLogs = this.getQuizResults();
 
-    logs.forEach(log => {
-      if (!studentMap[log.name]) {
-        studentMap[log.name] = [];
-      }
-      studentMap[log.name].push(log);
-    });
+    const studentSet = new Set([
+      ...gameLogs.map(l => l.name),
+      ...quizLogs.map(q => q.name)
+    ]);
 
     const summaryList = [];
 
-    Object.keys(studentMap).forEach(name => {
-      const pLogs = studentMap[name];
-      const playCount = pLogs.length;
-      const firstLog = pLogs[0];
-      const latestLog = pLogs[pLogs.length - 1];
-      const bestScore = Math.max(...pLogs.map(l => l.totalScore));
+    studentSet.forEach(name => {
+      const pGameLogs = gameLogs.filter(l => l.name === name);
+      const playCount = pGameLogs.length;
 
-      const firstScore = firstLog.totalScore;
-      const latestScore = latestLog.totalScore;
+      const firstGameLog = pGameLogs[0];
+      const latestGameLog = pGameLogs[pGameLogs.length - 1];
+      const bestGameScore = pGameLogs.length > 0 ? Math.max(...pGameLogs.map(l => l.totalScore)) : 0;
+      const latestGameScore = latestGameLog ? latestGameLog.totalScore : 0;
 
-      let improvement = 0;
-      if (firstScore > 0) {
-        improvement = Math.round(((latestScore - firstScore) / firstScore) * 100);
-      } else if (latestScore > 0) {
-        improvement = 100;
+      // Quiz Scores
+      const pQuizLogs = quizLogs.filter(q => q.name === name);
+      const preQuizLog = pQuizLogs.filter(q => q.type === 'pre').pop();
+      const postQuizLog = pQuizLogs.filter(q => q.type === 'post').pop();
+
+      const preScore = preQuizLog ? preQuizLog.score : '-';
+      const postScore = postQuizLog ? postQuizLog.score : '-';
+
+      // พัฒนาการแบบทดสอบ (%)
+      let quizImprovementText = '-';
+      let quizImprovementVal = 0;
+      if (preQuizLog && postQuizLog) {
+        const diff = postQuizLog.score - preQuizLog.score;
+        const pct = Math.round((diff / 5) * 100);
+        quizImprovementVal = pct;
+        quizImprovementText = pct >= 0 ? `+${pct}% (${diff >= 0 ? '+' : ''}${diff})` : `${pct}% (${diff})`;
+      } else if (postQuizLog) {
+        quizImprovementText = `${postQuizLog.score}/5`;
+      }
+
+      // พัฒนาการเกม AI
+      let gameImprovement = 0;
+      if (firstGameLog && firstGameLog.totalScore > 0 && latestGameLog) {
+        gameImprovement = Math.round(((latestGameLog.totalScore - firstGameLog.totalScore) / firstGameLog.totalScore) * 100);
+      } else if (latestGameLog && latestGameLog.totalScore > 0) {
+        gameImprovement = 100;
       }
 
       let paResult = 'ผ่านเกณฑ์ PA';
-      if (latestScore >= 80) paResult = 'ดีเยี่ยม (100%)';
-      else if (latestScore >= 50) paResult = 'ดี (ผ่าน)';
+      if ((postQuizLog && postQuizLog.score >= 4) || latestGameScore >= 80) paResult = 'ดีเยี่ยม (100%)';
+      else if ((postQuizLog && postQuizLog.score >= 3) || latestGameScore >= 50) paResult = 'ดี (ผ่าน)';
       else paResult = 'ควรปรับปรุง';
+
+      const lastDate = latestGameLog ? latestGameLog.timestamp : (postQuizLog ? postQuizLog.timestamp : (preQuizLog ? preQuizLog.timestamp : '-'));
 
       summaryList.push({
         name,
         playCount,
-        firstScore,
-        latestScore,
-        bestScore,
-        improvement,
+        preScore,
+        postScore,
+        quizImprovementText,
+        quizImprovementVal,
+        latestGameScore,
+        bestGameScore,
+        gameImprovement,
         paResult,
-        lastPlayDate: latestLog.timestamp
+        lastPlayDate: lastDate
       });
     });
 
@@ -197,18 +341,17 @@ class TeacherStore {
     }
 
     let csvContent = '\uFEFF'; // UTF-8 BOM for Excel Thai language compatibility
-    csvContent += 'ชื่อ - นามสกุล นักเรียน,จำนวนครั้งที่เล่น,คะแนนครั้งแรก,คะแนนครั้งล่าสุด,คะแนนสูงสุด,พัฒนาการ (%),ผลการประเมิน PA,วันที่เล่นล่าสุด\n';
+    csvContent += 'ชื่อ - นามสกุล นักเรียน,คะแนนก่อนเรียน (Pre-test /5),คะแนนหลังเรียน (Post-test /5),พัฒนาการทฤษฎี (%),จำนวนครั้งเล่นเกม AI,คะแนนปฏิบัติ AI ล่าสุด,คะแนนสูงสุด AI,ผลการประเมิน PA,วันที่บันทึกล่าสุด\n';
 
     stats.forEach(s => {
-      const impText = s.improvement >= 0 ? `+${s.improvement}%` : `${s.improvement}%`;
-      csvContent += `"${s.name}",${s.playCount},${s.firstScore},${s.latestScore},${s.bestScore},"${impText}","${s.paResult}","${s.lastPlayDate}"\n`;
+      csvContent += `"${s.name}","${s.preScore}","${s.postScore}","${s.quizImprovementText}",${s.playCount},${s.latestGameScore},${s.bestGameScore},"${s.paResult}","${s.lastPlayDate}"\n`;
     });
 
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.setAttribute('download', `รายงานสถิตินักเรียน_นาฏยศัพท์_PA_${new Date().toISOString().slice(0,10)}.csv`);
+    link.setAttribute('download', `รายงานสถิติPA_ก่อนหลังเรียน_นาฏยศัพท์_${new Date().toISOString().slice(0,10)}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -258,6 +401,25 @@ class TeacherStore {
   getPostureById(id) {
     const postures = this.getPostures();
     return postures.find(p => p.id === Number(id)) || postures[0];
+  }
+
+  // Automatically fetch shared custom images from server repository (data/custom-images.json)
+  async loadServerCustomImages() {
+    try {
+      const res = await fetch('data/custom-images.json');
+      if (res.ok) {
+        const serverData = await res.json();
+        if (serverData && typeof serverData === 'object' && Object.keys(serverData).length > 0) {
+          const current = this.getCustomImages();
+          const merged = { ...serverData, ...current };
+          localStorage.setItem(this.STORAGE_KEY_IMAGES, JSON.stringify(merged));
+          return true;
+        }
+      }
+    } catch (e) {
+      console.log('No server custom images pack found or fetch error', e);
+    }
+    return false;
   }
 
   // Get custom images stored in LocalStorage
