@@ -205,7 +205,7 @@
         </div>
 
         <div id="summary-badge" style="font-size: 1.2rem; font-weight: 700; margin-bottom: 28px; padding: 12px; background: rgba(0,230,118,0.15); border-radius: 12px; border: 1px solid var(--emerald-green);">
-          🏆 ระดับผลการประเมิน: ดีเยี่ยม (ผ่านเกณฑ์ PA 100%)
+          🏆 ระดับผลการประเมิน: ดีเยี่ยม (ผ่านเกณฑ์ 100%)
         </div>
 
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px;">
@@ -232,11 +232,17 @@
         <button id="btn-close-quiz-modal" type="button" class="btn-close">&times;</button>
       </div>
 
-      <!-- Quiz Top Status & Progress Bar -->
+      <!-- Quiz Top Status, Timer & TTS Sound Button -->
       <div class="quiz-status-header">
         <div class="quiz-progress-pill">
           📌 ข้อที่ <span id="quiz-curr-idx">1</span> / <span id="quiz-total-idx">5</span>
         </div>
+        <div id="quiz-timer-pill" class="quiz-timer-pill">
+          ⏱️ เหลือเวลา: <span id="quiz-timer-sec">15</span> วินาที
+        </div>
+        <button id="btn-quiz-tts" type="button" class="btn-quiz-tts" title="เปิด/ปิดเสียง AI อ่านโจทย์">
+          🔊 อ่านโจทย์ด้วยเสียง AI
+        </button>
         <div class="quiz-progress-track">
           <div id="quiz-progress-bar-fill" class="quiz-progress-fill"></div>
         </div>
@@ -290,10 +296,10 @@
         </div>
       </div>
 
-      <!-- PA Pre vs Post Comparison Card (เมื่อทำครบทั้งก่อนและหลังเรียน) -->
+      <!-- Comparison Progress Card (เมื่อทำครบทั้งก่อนและหลังเรียน) -->
       <div id="quiz-comparison-card" class="quiz-comparison-card" style="display: none;">
         <h3 style="color: var(--thai-gold-light); margin: 0 0 10px 0; font-size: 1.05rem;">
-          📈 สรุปพัฒนาการการเรียนรู้ (PA Development Progress)
+          📈 สรุปพัฒนาการการเรียนรู้ (Development Progress)
         </h3>
         <div class="comp-grid">
           <div class="comp-box">
@@ -312,7 +318,7 @@
       </div>
 
       <!-- Detailed Answer Explanations List -->
-      <h3 style="color: var(--thai-gold-light); font-size: 1.05rem; margin: 18px 0 10px 0; text-align: left;">
+      <h3 id="quiz-explanations-header" style="color: var(--thai-gold-light); font-size: 1.05rem; margin: 18px 0 10px 0; text-align: left;">
         💡 เฉลยคำตอบและคำอธิบายอย่างละเอียด:
       </h3>
       <div id="quiz-explanations-list" class="quiz-explanations-list">
@@ -364,7 +370,7 @@
           📷 จัดการภาพท่าต้นฉบับ
         </button>
         <button type="button" id="tab-btn-analytics" class="teacher-tab-btn" onclick="window.app.switchTeacherTab('analytics')">
-          📊 สถิติคะแนน & พัฒนาการนักเรียน (สำหรับ PA)
+          📊 สถิติคะแนน & พัฒนาการนักเรียน
         </button>
       </div>
 
@@ -393,7 +399,7 @@
         </div>
       </div>
 
-      <!-- TAB 2: STUDENT ANALYTICS & PA REPORT BACKEND -->
+      <!-- TAB 2: STUDENT ANALYTICS & REPORT BACKEND -->
       <div id="teacher-tab-analytics" class="teacher-tab-content" style="display: none;">
         <!-- Cloud Database / Google Sheet Webhook Sync Card -->
         <div style="background: rgba(15,2,5,0.8); border: 1px solid var(--thai-gold); border-radius: 12px; padding: 12px 16px; margin-bottom: 16px;">
@@ -410,7 +416,7 @@
         </div>
 
         <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 16px;">
-          <h3 style="color: var(--thai-gold-light); font-size: 1.1rem; margin: 0;">📈 รายงานสถิติคะแนนก่อน-หลังเรียน และอัตราพัฒนาการเรียนรู้ (PA)</h3>
+          <h3 style="color: var(--thai-gold-light); font-size: 1.1rem; margin: 0;">📈 รายงานสถิติคะแนนก่อน-หลังเรียน และอัตราพัฒนาการเรียนรู้</h3>
           <div style="display: flex; gap: 8px; flex-wrap: wrap;">
             <label class="btn-gold" style="padding: 6px 12px; font-size: 0.82rem; cursor: pointer; background: linear-gradient(135deg, #0288D1 0%, #01579B 100%); color: #FFF;">
               📤 นำเข้าไฟล์สถิติมือถืออื่น
@@ -440,7 +446,7 @@
                 <th>พัฒนาการทฤษฎี (%)</th>
                 <th>ครั้งที่เล่นเกม</th>
                 <th>คะแนนเกม AI</th>
-                <th>ผลการประเมิน PA</th>
+                <th>ผลการประเมิน</th>
                 <th>วันที่บันทึกล่าสุด</th>
               </tr>
             </thead>

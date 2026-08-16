@@ -1273,3 +1273,63 @@ body::before {
   font-style: italic;
 }
 
+/* 15-Second Quiz Question Timer Pill */
+.quiz-timer-pill {
+  background: rgba(255, 183, 77, 0.15);
+  border: 1px solid #FFB74D;
+  color: #FFB74D;
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-weight: 700;
+  font-size: 0.88rem;
+  white-space: nowrap;
+  transition: all 0.3s ease;
+}
+
+.quiz-timer-pill.warning {
+  background: rgba(255, 82, 82, 0.25);
+  border-color: #FF5252;
+  color: #FF5252;
+  animation: pulseTimer 0.5s infinite alternate ease-in-out;
+}
+
+@keyframes pulseTimer {
+  from { transform: scale(1); }
+  to { transform: scale(1.08); }
+}
+
+/* Text-to-Speech (TTS) Voice Reader Button */
+.btn-quiz-tts {
+  background: rgba(2, 136, 209, 0.2);
+  border: 1px solid #0288D1;
+  color: #4FC3F7;
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.btn-quiz-tts:hover {
+  background: rgba(2, 136, 209, 0.4);
+  color: #FFF;
+}
+
+.btn-quiz-tts.active {
+  background: linear-gradient(135deg, #0288D1 0%, #01579B 100%);
+  color: #FFF;
+  box-shadow: 0 0 12px rgba(3, 155, 229, 0.6);
+  animation: pulseTTS 0.8s infinite alternate ease-in-out;
+}
+
+@keyframes pulseTTS {
+  from { opacity: 0.85; }
+  to { opacity: 1; }
+}
+
+

@@ -15,6 +15,10 @@ class GameApp {
     this.currentQuizType = 'pre'; // 'pre' หรือ 'post'
     this.currentQuizIndex = 0;
     this.quizAnswers = [];
+    this.activeQuestions = [];
+    this.questionTimer = null;
+    this.questionTimeLeft = 15;
+    this.isTTSEnabled = false;
 
     // Timers
     this.gameTimer = null;
@@ -59,7 +63,7 @@ class GameApp {
     this.btnCloseQuizResult = document.getElementById('btn-close-quiz-result');
     this.btnQuizResultContinue = document.getElementById('btn-quiz-result-continue');
 
-    // Quiz Inner Elements
+    // Quiz Inner Elements & TTS / Timer
     this.quizModalTitle = document.getElementById('quiz-modal-title');
     this.quizStudentSubtitle = document.getElementById('quiz-student-subtitle');
     this.quizCurrIdx = document.getElementById('quiz-curr-idx');
@@ -69,6 +73,9 @@ class GameApp {
     this.quizOptionsContainer = document.getElementById('quiz-options-container');
     this.btnQuizPrev = document.getElementById('btn-quiz-prev');
     this.btnQuizNext = document.getElementById('btn-quiz-next');
+    this.btnQuizTTS = document.getElementById('btn-quiz-tts');
+    this.quizTimerPill = document.getElementById('quiz-timer-pill');
+    this.quizTimerSec = document.getElementById('quiz-timer-sec');
 
     // Game Elements
     this.videoElement = document.getElementById('webcam-video');
@@ -140,9 +147,27 @@ class GameApp {
       this.btnQuizNext.addEventListener('click', () => this.nextQuizQuestion());
     }
 
+    // AI TTS Voice Reader Button
+    if (this.btnQuizTTS) {
+      this.btnQuizTTS.addEventListener('click', () => {
+        this.isTTSEnabled = !this.isTTSEnabled;
+        if (this.isTTSEnabled) {
+          this.btnQuizTTS.classList.add('active');
+          this.btnQuizTTS.innerHTML = '🔊 กำลังอ่านโจทย์ด้วยเสียง AI';
+          this.speakCurrentQuestion();
+        } else {
+          this.btnQuizTTS.classList.remove('active');
+          this.btnQuizTTS.innerHTML = '🔊 อ่านโจทย์ด้วยเสียง AI';
+          if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+        }
+      });
+    }
+
     // Quiz Modal Close Actions
     if (this.btnCloseQuizModal) {
       this.btnCloseQuizModal.addEventListener('click', () => {
+        this.stopQuestionTimer();
+        if ('speechSynthesis' in window) window.speechSynthesis.cancel();
         if (this.modalQuiz) this.modalQuiz.classList.remove('active');
       });
     }
@@ -681,6 +706,15 @@ class GameApp {
     this.studentStatusText.innerHTML = `👤 นักเรียน: <strong>${name}</strong> | ${preText} | ${postText}${impText}`;
   }
 
+  shuffleArray(array) {
+    const arr = [...array];
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+  }
+
   startQuiz(type) {
     if (!this.inputStudentName) return;
     const sName = this.inputStudentName.value.trim();
@@ -694,7 +728,35 @@ class GameApp {
 
     this.currentQuizType = type; // 'pre' หรือ 'post'
     this.currentQuizIndex = 0;
-    this.quizAnswers = new Array(window.QUIZ_QUESTIONS.length).fill(null);
+
+    // เตรียมข้อสอบ (Pre-Test: ลำดับปกติ; Post-Test: สลับลำดับคำถาม และสลับตัวเลือก ก ข ค ง)
+    if (type === 'pre') {
+      this.activeQuestions = window.QUIZ_QUESTIONS.map(q => ({
+        ...q,
+        options: [...q.options],
+        answerIndex: q.answerIndex
+      }));
+    } else {
+      // Post-Test: Shuffle questions and options dynamically
+      const shuffledQ = this.shuffleArray([...window.QUIZ_QUESTIONS]);
+      this.activeQuestions = shuffledQ.map(q => {
+        const originalCorrectText = q.options[q.answerIndex].replace(/^[ก-ง]\.\s*/, '').trim();
+        const cleanOpts = q.options.map(opt => opt.replace(/^[ก-ง]\.\s*/, '').trim());
+        const shuffledCleanOpts = this.shuffleArray(cleanOpts);
+
+        const newCorrectIndex = shuffledCleanOpts.findIndex(opt => opt === originalCorrectText);
+        const prefixes = ['ก', 'ข', 'ค', 'ง'];
+        const prefixedOpts = shuffledCleanOpts.map((opt, i) => `${prefixes[i]}. ${opt}`);
+
+        return {
+          ...q,
+          options: prefixedOpts,
+          answerIndex: newCorrectIndex
+        };
+      });
+    }
+
+    this.quizAnswers = new Array(this.activeQuestions.length).fill(null);
 
     if (this.quizModalTitle) {
       this.quizModalTitle.innerHTML = type === 'pre' ? '📝 แบบทดสอบก่อนเรียน (Pre-Test)' : '📝 แบบทดสอบหลังเรียน (Post-Test)';
@@ -708,13 +770,13 @@ class GameApp {
   }
 
   renderQuizQuestion() {
-    const q = window.QUIZ_QUESTIONS[this.currentQuizIndex];
+    const q = this.activeQuestions[this.currentQuizIndex];
     if (!q) return;
 
     if (this.quizCurrIdx) this.quizCurrIdx.innerText = this.currentQuizIndex + 1;
-    if (this.quizTotalIdx) this.quizTotalIdx.innerText = window.QUIZ_QUESTIONS.length;
+    if (this.quizTotalIdx) this.quizTotalIdx.innerText = this.activeQuestions.length;
 
-    const pct = ((this.currentQuizIndex + 1) / window.QUIZ_QUESTIONS.length) * 100;
+    const pct = ((this.currentQuizIndex + 1) / this.activeQuestions.length) * 100;
     if (this.quizProgressBarFill) this.quizProgressBarFill.style.width = `${pct}%`;
 
     if (this.quizQuestionText) this.quizQuestionText.innerText = q.question;
@@ -735,10 +797,70 @@ class GameApp {
       this.btnQuizPrev.disabled = (this.currentQuizIndex === 0);
     }
     if (this.btnQuizNext) {
-      this.btnQuizNext.innerHTML = (this.currentQuizIndex === window.QUIZ_QUESTIONS.length - 1)
+      this.btnQuizNext.innerHTML = (this.currentQuizIndex === this.activeQuestions.length - 1)
         ? '🚀 ส่งแบบทดสอบ (Submit)'
         : 'ข้อถัดไป ➡️';
     }
+
+    // เริ่มนับถอยหลัง 15 วินาทีประจำข้อ
+    this.startQuestionTimer();
+
+    // หากเปิดโหมดอ่านเสียง AI ให้เริ่มอ่านโจทย์อัตโนมัติ
+    if (this.isTTSEnabled) {
+      this.speakCurrentQuestion();
+    }
+  }
+
+  startQuestionTimer() {
+    this.stopQuestionTimer();
+    this.questionTimeLeft = 15;
+
+    if (this.quizTimerSec) this.quizTimerSec.innerText = this.questionTimeLeft;
+    if (this.quizTimerPill) this.quizTimerPill.classList.remove('warning');
+
+    this.questionTimer = setInterval(() => {
+      this.questionTimeLeft--;
+      if (this.quizTimerSec) this.quizTimerSec.innerText = this.questionTimeLeft;
+
+      if (this.questionTimeLeft <= 5 && this.quizTimerPill) {
+        this.quizTimerPill.classList.add('warning');
+      }
+
+      if (this.questionTimeLeft <= 0) {
+        this.stopQuestionTimer();
+        if (window.soundEngine) window.soundEngine.playClick();
+        // หมดเวลา 15 วินาที -> เปลี่ยนไปข้อถัดไปอัตโนมัติ
+        this.nextQuizQuestion(true);
+      }
+    }, 1000);
+  }
+
+  stopQuestionTimer() {
+    if (this.questionTimer) {
+      clearInterval(this.questionTimer);
+      this.questionTimer = null;
+    }
+  }
+
+  speakCurrentQuestion() {
+    if (!('speechSynthesis' in window)) return;
+    window.speechSynthesis.cancel(); // หยุดเสียงเดิมก่อน
+
+    if (!this.isTTSEnabled) return;
+
+    const q = this.activeQuestions[this.currentQuizIndex];
+    if (!q) return;
+
+    // เตรียมข้อความอ่านโจทย์ + ตัวเลือก ก, ข, ค, ง
+    const cleanQuestion = q.question.replace(/^[0-9]+\.\s*/, '');
+    const cleanOpts = q.options.map(opt => opt.replace(/^[ก-ง]\.\s*/, ''));
+    const textToRead = `${cleanQuestion} ตัวเลือกที่หนึ่ง ${cleanOpts[0]} ตัวเลือกที่สอง ${cleanOpts[1]} ตัวเลือกที่สาม ${cleanOpts[2]} ตัวเลือกที่สี่ ${cleanOpts[3]}`;
+
+    const utterance = new SpeechSynthesisUtterance(textToRead);
+    utterance.lang = 'th-TH';
+    utterance.rate = 1.35; // ความเร็ว ~1.35x อ่านจบกระชับใน 8-10 วินาที
+
+    window.speechSynthesis.speak(utterance);
   }
 
   selectQuizOption(optIndex) {
@@ -747,16 +869,19 @@ class GameApp {
     this.renderQuizQuestion();
   }
 
-  nextQuizQuestion() {
+  nextQuizQuestion(isAutoAdvance = false) {
     const selected = this.quizAnswers[this.currentQuizIndex];
-    if (selected === null || selected === undefined) {
+    if (!isAutoAdvance && (selected === null || selected === undefined)) {
       alert('โปรดเลือกคำตอบก่อนไปยังข้อถัดไป');
       return;
     }
 
-    if (window.soundEngine) window.soundEngine.playClick();
+    this.stopQuestionTimer();
+    if ('speechSynthesis' in window) window.speechSynthesis.cancel();
 
-    if (this.currentQuizIndex < window.QUIZ_QUESTIONS.length - 1) {
+    if (window.soundEngine && !isAutoAdvance) window.soundEngine.playClick();
+
+    if (this.currentQuizIndex < this.activeQuestions.length - 1) {
       this.currentQuizIndex++;
       this.renderQuizQuestion();
     } else {
@@ -766,6 +891,9 @@ class GameApp {
 
   prevQuizQuestion() {
     if (this.currentQuizIndex > 0) {
+      this.stopQuestionTimer();
+      if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+
       if (window.soundEngine) window.soundEngine.playClick();
       this.currentQuizIndex--;
       this.renderQuizQuestion();
@@ -773,17 +901,20 @@ class GameApp {
   }
 
   submitQuiz() {
+    this.stopQuestionTimer();
+    if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+
     const sName = this.inputStudentName.value.trim();
     let score = 0;
 
-    window.QUIZ_QUESTIONS.forEach((q, idx) => {
+    this.activeQuestions.forEach((q, idx) => {
       if (this.quizAnswers[idx] === q.answerIndex) {
         score++;
       }
     });
 
     if (window.teacherStore) {
-      window.teacherStore.saveQuizResult(sName, this.currentQuizType, score, window.QUIZ_QUESTIONS.length, this.quizAnswers);
+      window.teacherStore.saveQuizResult(sName, this.currentQuizType, score, this.activeQuestions.length, this.quizAnswers);
     }
 
     if (this.modalQuiz) this.modalQuiz.classList.remove('active');
@@ -820,7 +951,7 @@ class GameApp {
     let badgeColor = '#FF5252';
     if (score === 5) { levelText = 'ดีเยี่ยม (100%)'; badgeColor = '#00E676'; }
     else if (score >= 4) { levelText = 'ดีมาก (80%)'; badgeColor = '#00E676'; }
-    else if (score >= 3) { levelText = 'ผ่านเกณฑ์ PA (60%)'; badgeColor = '#FFD700'; }
+    else if (score >= 3) { levelText = 'ผ่านเกณฑ์ (60%)'; badgeColor = '#FFD700'; }
 
     if (badgeEl) {
       badgeEl.innerText = `ระดับผลการประเมิน: ${levelText}`;
@@ -836,7 +967,7 @@ class GameApp {
       }
     }
 
-    // PA Comparison Card
+    // Comparison Progress Card
     const compCard = document.getElementById('quiz-comparison-card');
     const preScoreEl = document.getElementById('comp-pre-score');
     const postScoreEl = document.getElementById('comp-post-score');
@@ -861,14 +992,32 @@ class GameApp {
       }
     }
 
-    // Explanations List
+    // Explanations List Header
+    const expHeader = document.getElementById('quiz-explanations-header');
+    if (expHeader) {
+      expHeader.innerHTML = type === 'pre'
+        ? '💡 สรุปการตอบคำถามก่อนเรียน (แสดงข้อที่ถูก/ผิด):'
+        : '💡 เฉลยคำตอบและคำอธิบายอย่างละเอียด (Post-Test):';
+    }
+
+    // Explanations List: Pre-Test -> NO explanation text; Post-Test -> WITH explanation text!
     const expListEl = document.getElementById('quiz-explanations-list');
     if (expListEl) {
-      expListEl.innerHTML = window.QUIZ_QUESTIONS.map((q, idx) => {
+      expListEl.innerHTML = this.activeQuestions.map((q, idx) => {
         const userAnsIdx = answers[idx];
         const isCorrect = userAnsIdx === q.answerIndex;
-        const userAnsText = userAnsIdx !== null ? q.options[userAnsIdx] : 'ไม่ได้ตอบ';
+        const userAnsText = (userAnsIdx !== null && userAnsIdx !== undefined) ? q.options[userAnsIdx] : 'ไม่ได้ตอบ (หมดเวลา 15 วินาที)';
         const correctAnsText = q.options[q.answerIndex];
+
+        // แสดงกล่องคำอธิบายเฉพาะแบบทดสอบหลังเรียน (Post-test) เท่านั้น
+        const explanationBlock = type === 'post' ? `
+          <div class="quiz-exp-text">
+            💡 <strong>คำอธิบาย:</strong> ${q.explanation}
+          </div>
+          <div class="quiz-exp-indicator">
+            🎯 ตัวชี้วัด: ${q.indicator}
+          </div>
+        ` : '';
 
         return `
           <div class="quiz-exp-item ${isCorrect ? 'correct' : 'incorrect'}">
@@ -880,12 +1029,7 @@ class GameApp {
               คำตอบของคุณ: <strong>${userAnsText}</strong>
               ${!isCorrect ? `<br>คำตอบที่ถูกต้องคือ: <strong style="color:#00E676;">${correctAnsText}</strong>` : ''}
             </div>
-            <div class="quiz-exp-text">
-              💡 <strong>คำอธิบาย:</strong> ${q.explanation}
-            </div>
-            <div class="quiz-exp-indicator">
-              🎯 ตัวชี้วัด: ${q.indicator}
-            </div>
+            ${explanationBlock}
           </div>
         `;
       }).join('');

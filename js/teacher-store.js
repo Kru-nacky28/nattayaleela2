@@ -307,9 +307,9 @@ class TeacherStore {
         gameImprovement = 100;
       }
 
-      let paResult = 'ผ่านเกณฑ์ PA';
+      let paResult = 'ผ่านเกณฑ์การประเมิน';
       if ((postQuizLog && postQuizLog.score >= 4) || latestGameScore >= 80) paResult = 'ดีเยี่ยม (100%)';
-      else if ((postQuizLog && postQuizLog.score >= 3) || latestGameScore >= 50) paResult = 'ดี (ผ่าน)';
+      else if ((postQuizLog && postQuizLog.score >= 3) || latestGameScore >= 50) paResult = 'ดี (ผ่านเกณฑ์)';
       else paResult = 'ควรปรับปรุง';
 
       const lastDate = latestGameLog ? latestGameLog.timestamp : (postQuizLog ? postQuizLog.timestamp : (preQuizLog ? preQuizLog.timestamp : '-'));
@@ -341,7 +341,7 @@ class TeacherStore {
     }
 
     let csvContent = '\uFEFF'; // UTF-8 BOM for Excel Thai language compatibility
-    csvContent += 'ชื่อ - นามสกุล นักเรียน,คะแนนก่อนเรียน (Pre-test /5),คะแนนหลังเรียน (Post-test /5),พัฒนาการทฤษฎี (%),จำนวนครั้งเล่นเกม AI,คะแนนปฏิบัติ AI ล่าสุด,คะแนนสูงสุด AI,ผลการประเมิน PA,วันที่บันทึกล่าสุด\n';
+    csvContent += 'ชื่อ - นามสกุล นักเรียน,คะแนนก่อนเรียน (Pre-test /5),คะแนนหลังเรียน (Post-test /5),พัฒนาการทฤษฎี (%),จำนวนครั้งเล่นเกม AI,คะแนนปฏิบัติ AI ล่าสุด,คะแนนสูงสุด AI,ผลการประเมิน,วันที่บันทึกล่าสุด\n';
 
     stats.forEach(s => {
       csvContent += `"${s.name}","${s.preScore}","${s.postScore}","${s.quizImprovementText}",${s.playCount},${s.latestGameScore},${s.bestGameScore},"${s.paResult}","${s.lastPlayDate}"\n`;
@@ -351,7 +351,7 @@ class TeacherStore {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.setAttribute('download', `รายงานสถิติPA_ก่อนหลังเรียน_นาฏยศัพท์_${new Date().toISOString().slice(0,10)}.csv`);
+    link.setAttribute('download', `รายงานสถิติการเรียนรู้_นาฏยศัพท์_${new Date().toISOString().slice(0,10)}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
