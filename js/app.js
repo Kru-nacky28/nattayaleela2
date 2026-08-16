@@ -819,25 +819,25 @@ class GameApp {
     // หยุดตัวจับเวลาเดิมก่อน
     this.stopQuestionTimer();
 
-    // แสดงสถานะ 10 วินาทีเตรียมตัว
-    if (this.quizTimerSec) this.quizTimerSec.innerText = 10;
+    // แสดงสถานะ 30 วินาทีเตรียมตัว
+    if (this.quizTimerSec) this.quizTimerSec.innerText = 30;
     if (this.quizTimerPill) this.quizTimerPill.classList.remove('warning');
 
-    // หากเปิดโหมดอ่านเสียง AI ให้เริ่มอ่านโจทย์ก่อน เมื่ออ่านจบแล้วค่อยเริ่มจับเวลานับถอยหลัง 10 วินาที
+    // หากเปิดโหมดอ่านเสียง AI ให้เริ่มอ่านโจทย์ก่อน เมื่ออ่านจบแล้วค่อยเริ่มจับเวลานับถอยหลัง 30 วินาที
     if (this.isTTSEnabled && ('speechSynthesis' in window)) {
       this.speakCurrentQuestion(() => {
-        // เมื่อ AI อ่านจบ -> เริ่มนับถอยหลัง 10 วินาที
+        // เมื่อ AI อ่านจบ -> เริ่มนับถอยหลัง 30 วินาที
         this.startQuestionTimer();
       });
     } else {
-      // หากไม่ได้เปิดเสียง AI -> เริ่มนับถอยหลัง 10 วินาทีทันที
+      // หากไม่ได้เปิดเสียง AI -> เริ่มนับถอยหลัง 30 วินาทีทันที
       this.startQuestionTimer();
     }
   }
 
   startQuestionTimer() {
     this.stopQuestionTimer();
-    this.questionTimeLeft = 10; // 10 seconds per question after speech finishes
+    this.questionTimeLeft = 30; // 30 seconds per question after speech finishes
 
     if (this.quizTimerSec) this.quizTimerSec.innerText = this.questionTimeLeft;
     if (this.quizTimerPill) this.quizTimerPill.classList.remove('warning');
@@ -846,14 +846,14 @@ class GameApp {
       this.questionTimeLeft--;
       if (this.quizTimerSec) this.quizTimerSec.innerText = this.questionTimeLeft;
 
-      if (this.questionTimeLeft <= 3 && this.quizTimerPill) {
+      if (this.questionTimeLeft <= 5 && this.quizTimerPill) {
         this.quizTimerPill.classList.add('warning');
       }
 
       if (this.questionTimeLeft <= 0) {
         this.stopQuestionTimer();
         if (window.soundEngine) window.soundEngine.playClick();
-        // หมดเวลา 10 วินาที -> บันทึก 0 คะแนนและเปลี่ยนไปข้อถัดไปอัตโนมัติ (ไม่วนกลับ)
+        // หมดเวลา 30 วินาที -> บันทึก 0 คะแนนและเปลี่ยนไปข้อถัดไปอัตโนมัติ (ไม่วนกลับ)
         this.nextQuizQuestion(true);
       }
     }, 1000);
@@ -1065,7 +1065,7 @@ class GameApp {
       expListEl.innerHTML = this.activeQuestions.map((q, idx) => {
         const userAnsIdx = answers[idx];
         const isCorrect = userAnsIdx === q.answerIndex;
-        const userAnsText = (userAnsIdx !== null && userAnsIdx !== undefined) ? q.options[userAnsIdx] : 'ไม่ได้ตอบ (หมดเวลา 25 วินาที - 0 คะแนน)';
+        const userAnsText = (userAnsIdx !== null && userAnsIdx !== undefined) ? q.options[userAnsIdx] : 'ไม่ได้ตอบ (หมดเวลา 30 วินาที - 0 คะแนน)';
         const correctAnsText = q.options[q.answerIndex];
 
         let answerDetailHTML = '';
