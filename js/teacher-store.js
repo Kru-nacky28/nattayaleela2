@@ -125,6 +125,7 @@ class TeacherStore {
       score,
       totalQuestions,
       answers,
+      logCategory: 'QUIZ',
       timestamp: new Date().toLocaleString('th-TH', { dateStyle: 'short', timeStyle: 'short' }),
       device: navigator.userAgent.includes('Mobile') ? 'Mobile' : 'PC'
     };
@@ -137,7 +138,7 @@ class TeacherStore {
       console.error('Failed quiz log save', e);
     }
 
-    // Cloud Sync
+    // Cloud Sync Immediate Push
     try {
       this.sendCloudStudentLog(newQuizEntry);
     } catch (err) {
@@ -161,7 +162,12 @@ class TeacherStore {
   }
 
   getCloudUrl() {
-    return localStorage.getItem(this.STORAGE_KEY_CLOUD_URL) || '';
+    const userSaved = localStorage.getItem(this.STORAGE_KEY_CLOUD_URL);
+    if (userSaved && userSaved.trim()) return userSaved.trim();
+    if (typeof window !== 'undefined' && window.DEFAULT_CLOUD_URL && window.DEFAULT_CLOUD_URL.trim()) {
+      return window.DEFAULT_CLOUD_URL.trim();
+    }
+    return '';
   }
 
   saveCloudUrl(url) {
@@ -177,6 +183,7 @@ class TeacherStore {
       bonusScore,
       completedCount,
       timeUsed,
+      logCategory: 'GAME',
       timestamp: new Date().toLocaleString('th-TH', { dateStyle: 'short', timeStyle: 'short' }),
       device: navigator.userAgent.includes('Mobile') ? 'Mobile' : 'PC'
     };
@@ -190,7 +197,7 @@ class TeacherStore {
       console.error('Failed local log save', e);
     }
 
-    // 2. Sync to Central Online Cloud Analytics Server (ส่งสถิติออนไลน์ไปยังหลังบ้านของครู)
+    // 2. Sync to Central Online Cloud Analytics Server
     try {
       await this.sendCloudStudentLog(newLog);
     } catch (err) {
@@ -200,49 +207,93 @@ class TeacherStore {
     return newLog;
   }
 
-  // Send Student Log to Online Cloud Database / Google Sheet Endpoint
+  // Send Student Log to Online Cloud Database / Google Sheet Endpoint (รองรับ 100% บน iPad, มือถือ iOS/Android และโน้ตบุ๊ก)
   async sendCloudStudentLog(logEntry) {
     const cloudUrl = this.getCloudUrl();
     if (!cloudUrl) return;
 
+    const payload = JSON.stringify(logEntry);
+
+    // 1. ลองส่งผ่าน navigator.sendBeacon หากเบราว์เซอร์มือถือรองรับ
+    if (navigator.sendBeacon) {
+      try {
+        const blob = new Blob([payload], { type: 'text/plain;charset=UTF-8' });
+        const success = navigator.sendBeacon(cloudUrl, blob);
+        if (success) return;
+      } catch (e) {
+        // Fallback to fetch below
+      }
+    }
+
+    // 2. ส่งผ่าน fetch ด้วย mode: 'no-cors' และ text/plain ป้องกัน iOS Safari บล็อก POST
     try {
       await fetch(cloudUrl, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
         mode: 'no-cors',
-        body: JSON.stringify(logEntry)
+        body: payload
       });
     } catch (e) {
-      console.warn('Failed cloud post', e);
+      console.warn('Failed cloud post on mobile/PC', e);
     }
   }
 
-  // Fetch Centralized Logs from Cloud Server
+  // Fetch & Synchronize Centralized Logs across Notebook, iPad, Mobile Phone
   async fetchCloudStudentLogs() {
     const cloudUrl = this.getCloudUrl();
-    if (!cloudUrl) return this.getHistoryLogs();
+    if (!cloudUrl) return;
 
     try {
-      const res = await fetch(cloudUrl);
+      const res = await fetch(cloudUrl, { method: 'GET', cache: 'no-cache' });
       if (res.ok) {
-        const cloudLogs = await res.json();
-        if (Array.isArray(cloudLogs) && cloudLogs.length > 0) {
-          // Merge cloud logs with local logs without duplicates
-          const localLogs = this.getHistoryLogs();
-          const existingIds = new Set(localLogs.map(l => l.id));
-          cloudLogs.forEach(cl => {
-            if (!existingIds.has(cl.id)) {
-              localLogs.push(cl);
+        const cloudData = await res.json();
+        if (Array.isArray(cloudData) && cloudData.length > 0) {
+          const localGameLogs = this.getHistoryLogs();
+          const localQuizLogs = this.getQuizResults();
+
+          const gameIds = new Set(localGameLogs.map(l => String(l.id)));
+          const quizIds = new Set(localQuizLogs.map(q => String(q.id)));
+
+          cloudData.forEach(item => {
+            let log = item;
+
+            // Handle Apps Script 2D array row or JSON string column fallback
+            if (Array.isArray(item)) {
+              try {
+                const jsonStr = item[item.length - 1];
+                if (typeof jsonStr === 'string' && jsonStr.startsWith('{')) {
+                  log = JSON.parse(jsonStr);
+                }
+              } catch (err) {
+                log = null;
+              }
+            }
+
+            if (!log || !log.id) return;
+
+            const strId = String(log.id);
+
+            // Separate into Quiz vs Game Logs
+            if (log.logCategory === 'QUIZ' || log.type === 'pre' || log.type === 'post') {
+              if (!quizIds.has(strId)) {
+                localQuizLogs.push(log);
+                quizIds.add(strId);
+              }
+            } else if (log.logCategory === 'GAME' || log.totalScore !== undefined) {
+              if (!gameIds.has(strId)) {
+                localGameLogs.push(log);
+                gameIds.add(strId);
+              }
             }
           });
-          localStorage.setItem(this.STORAGE_KEY_HISTORY, JSON.stringify(localLogs));
-          return localLogs;
+
+          localStorage.setItem(this.STORAGE_KEY_HISTORY, JSON.stringify(localGameLogs));
+          localStorage.setItem(this.STORAGE_KEY_QUIZ, JSON.stringify(localQuizLogs));
         }
       }
     } catch (e) {
-      console.warn('Could not fetch cloud logs', e);
+      console.warn('Could not fetch cloud logs for auto-sync', e);
     }
-    return this.getHistoryLogs();
   }
 
   clearHistory() {

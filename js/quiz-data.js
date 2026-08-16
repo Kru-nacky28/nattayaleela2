@@ -1,8 +1,10 @@
 /**
- * QuizData - คลังข้อสอบแบบทดสอบก่อนเรียน และหลังเรียน (Pre-test & Post-test) 5 ข้อ
- * เรื่อง: นาฏยศัพท์ส่วนมือ (การตั้งวงและการจีบ) ชั้นมัธยมศึกษาปีที่ 1
- * สำหรับนวัตกรรมการเรียนรู้นาฏศิลป์ไทย PA - คุณครูนรีรัตน์ ธนาวัชรากุล
+ * Global Configuration for Cloud Centralized Student Sync
+ * คุณครูวางลิงก์ Google Sheet WebApp URL ที่นี่เพียงครั้งเดียว
+ * นักเรียนทุกคนจากทุกอุปกรณ์ (โน้ตบุ๊ก, ไอแพด, มือถือ) จะเชื่อมต่อสถิติและซิงค์คะแนนตรงกันอัตโนมัติ 100% โดยไม่ต้องพิมพ์ URL อีก!
  */
+window.DEFAULT_CLOUD_URL = "https://script.google.com/macros/s/AKfycbyVzozrOajr7GwlmXeAJt7KhDFZHsrd0y1PgDm1lLXfD5QE1-Hsi0lps8M3zfPyBAxe/exec";
+
 
 const QUIZ_QUESTIONS = [
   {

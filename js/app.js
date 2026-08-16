@@ -676,7 +676,7 @@ class GameApp {
 
   // --- Quiz Methods (แบบทดสอบก่อนเรียน & หลังเรียน) ---
 
-  updateStudentQuizStatusBanner() {
+  async updateStudentQuizStatusBanner() {
     if (!this.inputStudentName || !this.studentQuizStatusBanner) return;
     const name = this.inputStudentName.value.trim();
 
@@ -684,6 +684,9 @@ class GameApp {
       this.studentQuizStatusBanner.style.display = 'none';
       return;
     }
+
+    // ซิงค์สถิติจาก Cloud ก่อนแสดงผลแบนเนอร์ เพื่อให้คะแนนที่ทำจากมือถือ/ไอแพด/โน้ตบุ๊กเครื่องอื่นแสดงตรงกันทันที
+    await window.teacherStore.fetchCloudStudentLogs();
 
     const qRes = window.teacherStore.getQuizResultForStudent(name);
     if (!qRes || (qRes.preScore === null && qRes.postScore === null)) {
@@ -716,7 +719,7 @@ class GameApp {
     return arr;
   }
 
-  startQuiz(type) {
+  async startQuiz(type) {
     if (!this.inputStudentName) return;
     const sName = this.inputStudentName.value.trim();
     if (!sName) {
@@ -725,9 +728,13 @@ class GameApp {
       return;
     }
 
+    if (window.teacherStore) {
+      await window.teacherStore.fetchCloudStudentLogs();
+    }
+
     if (window.soundEngine) {
       window.soundEngine.playClick();
-      window.soundEngine.startQuizBGM(); // เริ่มเล่นเสียงตื่นเต้นระดับเสียงเบา
+      window.soundEngine.startQuizBGM();
     }
 
     this.currentQuizType = type; // 'pre' หรือ 'post'
