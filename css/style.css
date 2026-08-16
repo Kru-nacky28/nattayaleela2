@@ -1333,29 +1333,57 @@ body::before {
 }
 
 /* ==========================================================================
-   PRINT REPORT STYLING (ป้องกันระบบเด้งออก/ปิดระบบเมื่อกดพิมพ์บนโน้ตบุ๊ก)
+   PRINT REPORT STYLING (สำหรับพิมพ์รายงาน PDF พอดีหน้ากระดาษ A4 ไม่เด้งดับบนโน้ตบุ๊ก)
    ========================================================================== */
 @media print {
-  body {
-    background: #FFF !important;
-    color: #000 !important;
+  @page {
+    size: A4 portrait;
+    margin: 10mm;
   }
 
-  body > *:not(#modal-teacher-dashboard) {
-    display: none !important;
-  }
-
-  #modal-teacher-dashboard {
-    position: static !important;
+  /* Hide background elements */
+  html, body {
     background: #FFF !important;
     color: #000 !important;
-    display: block !important;
-    width: 100% !important;
+    font-family: 'Sarabun', 'Prompt', sans-serif !important;
+    margin: 0 !important;
+    padding: 0 !important;
     height: auto !important;
     overflow: visible !important;
   }
 
-  .modal-content {
+  /* Hide all main game screens, background UI, buttons, and navigation */
+  #screen-start,
+  #screen-game,
+  #screen-summary,
+  .hero-header,
+  .floating-ornament,
+  .btn-modal-close,
+  .teacher-tabs,
+  .cloud-config-box,
+  .dashboard-actions,
+  .btn-gold,
+  button,
+  input,
+  label {
+    display: none !important;
+  }
+
+  /* Force Teacher Dashboard Modal to fill printable page cleanly */
+  #modal-teacher-dashboard {
+    position: static !important;
+    display: block !important;
+    background: #FFF !important;
+    color: #000 !important;
+    width: 100% !important;
+    height: auto !important;
+    overflow: visible !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  #modal-teacher-dashboard .modal-content {
     background: #FFF !important;
     color: #000 !important;
     border: none !important;
@@ -1363,38 +1391,78 @@ body::before {
     width: 100% !important;
     max-width: 100% !important;
     padding: 0 !important;
+    margin: 0 !important;
   }
 
-  .btn-modal-close,
-  .teacher-tab-btn,
-  .cloud-config-box,
-  .dashboard-actions,
-  button {
-    display: none !important;
+  #teacher-tab-analytics {
+    display: block !important;
   }
 
+  #print-area-report {
+    display: block !important;
+    width: 100% !important;
+  }
+
+  /* Report Section Titles */
+  #print-area-report h4 {
+    color: #000 !important;
+    font-size: 11pt !important;
+    font-weight: bold !important;
+    margin-top: 15px !important;
+    margin-bottom: 8px !important;
+    border-bottom: 1.5px solid #000 !important;
+    padding-bottom: 4px !important;
+  }
+
+  .table-responsive-box {
+    overflow: visible !important;
+    width: 100% !important;
+    margin-bottom: 15px !important;
+    border: none !important;
+    padding: 0 !important;
+  }
+
+  /* Force Table to fit 100% within A4 page without cutting off right columns */
   .analytics-table {
+    width: 100% !important;
+    max-width: 100% !important;
+    table-layout: fixed !important; /* กำหนดให้คอลัมน์เฉลี่ยสัดส่วนพอดี 100% ไม่ล้นขอบขวา */
+    border-collapse: collapse !important;
+    background: #FFF !important;
+    color: #000 !important;
+    margin: 0 !important;
+  }
+
+  .analytics-table th,
+  .analytics-table td {
+    border: 1px solid #333 !important;
     color: #000 !important;
     background: #FFF !important;
-    border: 1px solid #000 !important;
-    width: 100% !important;
-    border-collapse: collapse !important;
-    margin-bottom: 20px !important;
+    padding: 5px 4px !important;
+    font-size: 8.5pt !important; /* ขนาดฟอนต์พอดีสำหรับการพิมพ์ A4 */
+    word-wrap: break-word !important;
+    overflow-wrap: break-word !important;
+    white-space: normal !important;
+    text-align: center !important;
+    line-height: 1.2 !important;
   }
 
-  .analytics-table th {
-    background: #EEEEEE !important;
-    color: #000 !important;
-    border: 1px solid #000 !important;
-    font-size: 10pt !important;
-    padding: 6px !important;
-  }
+  /* สัดส่วนคอลัมน์ตารางแบบทดสอบ (Quiz Analytics) */
+  .analytics-table th:nth-child(1), .analytics-table td:nth-child(1) { width: 6% !important; }
+  .analytics-table th:nth-child(2), .analytics-table td:nth-child(2) { width: 28% !important; text-align: left !important; }
+  .analytics-table th:nth-child(3), .analytics-table td:nth-child(3) { width: 14% !important; }
+  .analytics-table th:nth-child(4), .analytics-table td:nth-child(4) { width: 14% !important; }
+  .analytics-table th:nth-child(5), .analytics-table td:nth-child(5) { width: 18% !important; }
+  .analytics-table th:nth-child(6), .analytics-table td:nth-child(6) { width: 20% !important; }
 
-  .analytics-table td {
+  /* Style evaluation badges in clean print text */
+  .badge-eval, .badge-badge {
+    background: transparent !important;
+    border: none !important;
     color: #000 !important;
-    border: 1px solid #000 !important;
-    font-size: 10pt !important;
-    padding: 6px !important;
+    font-weight: bold !important;
+    padding: 0 !important;
+    font-size: 8.5pt !important;
   }
 }
 

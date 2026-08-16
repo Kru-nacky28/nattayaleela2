@@ -1206,10 +1206,10 @@ class GameApp {
 
   printAnalyticsReport() {
     try {
-      // ซูม/แสดงผลเฉพาะรายงานเพื่อการพิมพ์ที่สมบูรณ์แบบ
+      this.switchTeacherTab('analytics');
       setTimeout(() => {
         window.print();
-      }, 100);
+      }, 150);
     } catch (e) {
       console.error('Print error:', e);
     }
