@@ -270,7 +270,7 @@ class AudioEngine {
       if (!this.quizBgmPlaying || this.isMuted) return;
       const now = this.ctx.currentTime;
 
-      // Soft Exciting Rhythm (ระดับเสียงเบาเป็นพิเศษ 0.018 เพื่อให้เบากว่าเสียง AI อ่านแบบทดสอบอย่างชัดเจน)
+      // Exciting Rhythm Beat (ปรับเพิ่มระดับเสียงเป็น 0.060 ให้ดนตรีดังตื่นเต้นเร้าใจชัดเจนยิ่งขึ้น)
       if (this.quizBgmStep % 2 === 0) {
         const osc = this.ctx.createOscillator();
         const gain = this.ctx.createGain();
@@ -279,13 +279,13 @@ class AudioEngine {
         osc.type = 'triangle';
         osc.frequency.setValueAtTime(freq, now);
 
-        gain.gain.setValueAtTime(0.018, now);
-        gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.1);
+        gain.gain.setValueAtTime(0.060, now);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.14);
 
         osc.connect(gain);
         gain.connect(this.ctx.destination);
         osc.start(now);
-        osc.stop(now + 0.12);
+        osc.stop(now + 0.15);
       }
 
       this.quizBgmStep = (this.quizBgmStep + 1) % 16;
