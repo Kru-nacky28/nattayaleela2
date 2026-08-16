@@ -816,18 +816,28 @@ class GameApp {
         : 'ข้อถัดไป ➡️';
     }
 
-    // เริ่มนับถอยหลัง 25 วินาทีประจำข้อ
-    this.startQuestionTimer();
+    // หยุดตัวจับเวลาเดิมก่อน
+    this.stopQuestionTimer();
 
-    // หากเปิดโหมดอ่านเสียง AI ให้เริ่มอ่านโจทย์อัตโนมัติ (อ่านรอบเดียวประจำข้อ)
-    if (this.isTTSEnabled) {
-      this.speakCurrentQuestion();
+    // แสดงสถานะ 10 วินาทีเตรียมตัว
+    if (this.quizTimerSec) this.quizTimerSec.innerText = 10;
+    if (this.quizTimerPill) this.quizTimerPill.classList.remove('warning');
+
+    // หากเปิดโหมดอ่านเสียง AI ให้เริ่มอ่านโจทย์ก่อน เมื่ออ่านจบแล้วค่อยเริ่มจับเวลานับถอยหลัง 10 วินาที
+    if (this.isTTSEnabled && ('speechSynthesis' in window)) {
+      this.speakCurrentQuestion(() => {
+        // เมื่อ AI อ่านจบ -> เริ่มนับถอยหลัง 10 วินาที
+        this.startQuestionTimer();
+      });
+    } else {
+      // หากไม่ได้เปิดเสียง AI -> เริ่มนับถอยหลัง 10 วินาทีทันที
+      this.startQuestionTimer();
     }
   }
 
   startQuestionTimer() {
     this.stopQuestionTimer();
-    this.questionTimeLeft = 25; // 25 seconds per question
+    this.questionTimeLeft = 10; // 10 seconds per question after speech finishes
 
     if (this.quizTimerSec) this.quizTimerSec.innerText = this.questionTimeLeft;
     if (this.quizTimerPill) this.quizTimerPill.classList.remove('warning');
@@ -836,14 +846,14 @@ class GameApp {
       this.questionTimeLeft--;
       if (this.quizTimerSec) this.quizTimerSec.innerText = this.questionTimeLeft;
 
-      if (this.questionTimeLeft <= 5 && this.quizTimerPill) {
+      if (this.questionTimeLeft <= 3 && this.quizTimerPill) {
         this.quizTimerPill.classList.add('warning');
       }
 
       if (this.questionTimeLeft <= 0) {
         this.stopQuestionTimer();
         if (window.soundEngine) window.soundEngine.playClick();
-        // หมดเวลา 25 วินาที -> บันทึก 0 คะแนนและเปลี่ยนไปข้อถัดไปอัตโนมัติ (ไม่วนกลับ)
+        // หมดเวลา 10 วินาที -> บันทึก 0 คะแนนและเปลี่ยนไปข้อถัดไปอัตโนมัติ (ไม่วนกลับ)
         this.nextQuizQuestion(true);
       }
     }, 1000);
@@ -856,23 +866,49 @@ class GameApp {
     }
   }
 
-  speakCurrentQuestion() {
-    if (!('speechSynthesis' in window)) return;
+  speakCurrentQuestion(onEndCallback) {
+    if (!('speechSynthesis' in window)) {
+      if (onEndCallback) onEndCallback();
+      return;
+    }
+
     window.speechSynthesis.cancel(); // หยุดเสียงเดิมก่อน
 
-    if (!this.isTTSEnabled) return;
+    if (!this.isTTSEnabled) {
+      if (onEndCallback) onEndCallback();
+      return;
+    }
 
     const q = this.activeQuestions[this.currentQuizIndex];
-    if (!q) return;
+    if (!q) {
+      if (onEndCallback) onEndCallback();
+      return;
+    }
 
     // เตรียมข้อความอ่านโจทย์ + ตัวเลือก ก, ข, ค, ง
     const cleanQuestion = q.question.replace(/^[0-9]+\.\s*/, '');
     const cleanOpts = q.options.map(opt => opt.replace(/^[ก-ง]\.\s*/, ''));
-    const textToRead = `${cleanQuestion} ตัวเลือกที่หนึ่ง ${cleanOpts[0]} ตัวเลือกที่สอง ${cleanOpts[1]} ตัวเลือกที่สาม ${cleanOpts[2]} ตัวเลือกที่สี่ ${cleanOpts[3]}`;
+    const textToRead = `${cleanQuestion} ตัวเลือก ก. ${cleanOpts[0]} ตัวเลือก ข. ${cleanOpts[1]} ตัวเลือก ค. ${cleanOpts[2]} ตัวเลือก ง. ${cleanOpts[3]}`;
 
     const utterance = new SpeechSynthesisUtterance(textToRead);
     utterance.lang = 'th-TH';
     utterance.rate = 1.0; // ความเร็วระดับปกติของคนพูด (ไม่เร็วเกินไป)
+
+    let hasTriggered = false;
+    const triggerCallback = () => {
+      if (!hasTriggered) {
+        hasTriggered = true;
+        if (onEndCallback) onEndCallback();
+      }
+    };
+
+    utterance.onend = triggerCallback;
+    utterance.onerror = triggerCallback;
+
+    // Safety Timeout (ป้องกันหากเบราว์เซอร์ไม่อ่านหรือไม่มีการเรียก onend ให้เริ่มจับเวลาภายใน 20s)
+    setTimeout(() => {
+      triggerCallback();
+    }, 20000);
 
     window.speechSynthesis.speak(utterance);
   }
