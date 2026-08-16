@@ -736,31 +736,34 @@ class GameApp {
     // เตรียมข้อสอบ
     if (type === 'pre') {
       // Pre-Test: ลำดับปกติ
-      this.activeQuestions = window.QUIZ_QUESTIONS.map(q => ({
-        ...q,
-        options: [...q.options],
-        answerIndex: q.answerIndex
-      }));
+      this.activeQuestions = window.QUIZ_QUESTIONS.map((q, qIndex) => {
+        const cleanQText = q.question.replace(/^[0-9]+\.\s*/, '').trim();
+        return {
+          ...q,
+          question: `${qIndex + 1}. ${cleanQText}`,
+          options: [...q.options],
+          answerIndex: q.answerIndex
+        };
+      });
     } else {
-      // Post-Test: สลับข้อคำถามแบบเลื่อนลำดับ (+1 Cyclic Shift) และสลับตัวเลือก (ก->ข, ข->ค, ค->ง, ง->ก)
+      // Post-Test: เรียงลำดับข้อ 1, 2, 3, 4, 5 แต่สลับโจทย์ (นำโจทย์ข้อ 2 มาตั้งเป็นข้อ 1 ฯลฯ) และสลับตัวเลือก
       const masterLen = window.QUIZ_QUESTIONS.length;
-      // ข้อที่ 1 นำคำถามข้อที่ 2 มาถาม, ข้อ 2 นำข้อ 3 มาถาม ฯลฯ
       const shiftedQuestions = window.QUIZ_QUESTIONS.map((_, i) => window.QUIZ_QUESTIONS[(i + 1) % masterLen]);
 
-      this.activeQuestions = shiftedQuestions.map(q => {
+      this.activeQuestions = shiftedQuestions.map((q, qIndex) => {
+        const cleanQText = q.question.replace(/^[0-9]+\.\s*/, '').trim();
         const originalCorrectText = q.options[q.answerIndex].replace(/^[ก-ง]\.\s*/, '').trim();
         const cleanOpts = q.options.map(opt => opt.replace(/^[ก-ง]\.\s*/, '').trim());
 
-        // สลับตัวเลือกแบบเลื่อนลำดับ (ข้อความ ก เลื่อนไปแทน ข, ข ไปแทน ค เป็นต้น)
+        // สลับตัวเลือกแบบเลื่อนลำดับ (ก->ข, ข->ค, ค->ง, ง->ก)
         const shiftedCleanOpts = cleanOpts.map((_, i) => cleanOpts[(i + 1) % cleanOpts.length]);
-
-        // คำนวณดัชนีข้อที่ถูกต้องใหม่ให้อัตโนมัติ 100%
         const newCorrectIndex = shiftedCleanOpts.findIndex(opt => opt === originalCorrectText);
         const prefixes = ['ก', 'ข', 'ค', 'ง'];
         const prefixedOpts = shiftedCleanOpts.map((opt, i) => `${prefixes[i]}. ${opt}`);
 
         return {
           ...q,
+          question: `${qIndex + 1}. ${cleanQText}`,
           options: prefixedOpts,
           answerIndex: newCorrectIndex
         };
@@ -816,7 +819,7 @@ class GameApp {
     // เริ่มนับถอยหลัง 25 วินาทีประจำข้อ
     this.startQuestionTimer();
 
-    // หากเปิดโหมดอ่านเสียง AI ให้เริ่มอ่านโจทย์อัตโนมัติ
+    // หากเปิดโหมดอ่านเสียง AI ให้เริ่มอ่านโจทย์อัตโนมัติ (อ่านรอบเดียวประจำข้อ)
     if (this.isTTSEnabled) {
       this.speakCurrentQuestion();
     }
@@ -869,7 +872,7 @@ class GameApp {
 
     const utterance = new SpeechSynthesisUtterance(textToRead);
     utterance.lang = 'th-TH';
-    utterance.rate = 1.35; // ความเร็ว ~1.35x อ่านจบกระชับใน 8-10 วินาที
+    utterance.rate = 1.0; // ความเร็วระดับปกติของคนพูด (ไม่เร็วเกินไป)
 
     window.speechSynthesis.speak(utterance);
   }
@@ -877,7 +880,15 @@ class GameApp {
   selectQuizOption(optIndex) {
     if (window.soundEngine) window.soundEngine.playClick();
     this.quizAnswers[this.currentQuizIndex] = optIndex;
-    this.renderQuizQuestion();
+
+    // อัปเดตสถานะปุ่มเลือกตัวเลือกในหน้าจอโดยไม่ต้องเรียก renderQuizQuestion ใหม่ (เพื่อไม่ให้อ่านโจทย์ซ้ำ)
+    if (this.quizOptionsContainer) {
+      const btns = this.quizOptionsContainer.querySelectorAll('.quiz-option-btn');
+      btns.forEach((btn, idx) => {
+        if (idx === optIndex) btn.classList.add('selected');
+        else btn.classList.remove('selected');
+      });
+    }
   }
 
   nextQuizQuestion(isAutoAdvance = false) {
@@ -1008,11 +1019,11 @@ class GameApp {
     const expHeader = document.getElementById('quiz-explanations-header');
     if (expHeader) {
       expHeader.innerHTML = type === 'pre'
-        ? '💡 สรุปการตอบคำถามก่อนเรียน (แสดงข้อที่ถูก/ผิด):'
+        ? '💡 สรุปการตอบคำถามก่อนเรียน (แจ้งตอบถูก/ผิด):'
         : '💡 เฉลยคำตอบและคำอธิบายอย่างละเอียด (Post-Test):';
     }
 
-    // Explanations List: Pre-Test -> NO explanation text; Post-Test -> WITH explanation text!
+    // Explanations List: Pre-Test -> NO correct answer text, NO explanation box; Post-Test -> WITH correct answer & explanation!
     const expListEl = document.getElementById('quiz-explanations-list');
     if (expListEl) {
       expListEl.innerHTML = this.activeQuestions.map((q, idx) => {
@@ -1021,15 +1032,25 @@ class GameApp {
         const userAnsText = (userAnsIdx !== null && userAnsIdx !== undefined) ? q.options[userAnsIdx] : 'ไม่ได้ตอบ (หมดเวลา 25 วินาที - 0 คะแนน)';
         const correctAnsText = q.options[q.answerIndex];
 
-        // แสดงกล่องคำอธิบายเฉพาะแบบทดสอบหลังเรียน (Post-test) เท่านั้น
-        const explanationBlock = type === 'post' ? `
-          <div class="quiz-exp-text">
-            💡 <strong>คำอธิบาย:</strong> ${q.explanation}
-          </div>
-          <div class="quiz-exp-indicator">
-            🎯 ตัวชี้วัด: ${q.indicator}
-          </div>
-        ` : '';
+        let answerDetailHTML = '';
+        if (type === 'pre') {
+          // Pre-Test: แสดงเฉพาะสิ่งที่นักเรียนตอบ + ป้ายถูก/ผิด ไม่เฉลยข้อถูก
+          answerDetailHTML = `<div style="font-size: 0.88rem; color: #DDD;">คำตอบของคุณ: <strong>${userAnsText}</strong></div>`;
+        } else {
+          // Post-Test: แสดงคำตอบของคุณ, เฉลยข้อที่ถูก และกล่องคำอธิบายละเอียด
+          answerDetailHTML = `
+            <div style="font-size: 0.88rem; color: #DDD;">
+              คำตอบของคุณ: <strong>${userAnsText}</strong>
+              ${!isCorrect ? `<br>คำตอบที่ถูกต้องคือ: <strong style="color:#00E676;">${correctAnsText}</strong>` : ''}
+            </div>
+            <div class="quiz-exp-text">
+              💡 <strong>คำอธิบาย:</strong> ${q.explanation}
+            </div>
+            <div class="quiz-exp-indicator">
+              🎯 ตัวชี้วัด: ${q.indicator}
+            </div>
+          `;
+        }
 
         return `
           <div class="quiz-exp-item ${isCorrect ? 'correct' : 'incorrect'}">
@@ -1037,11 +1058,7 @@ class GameApp {
             <div class="quiz-exp-badge ${isCorrect ? 'correct' : 'incorrect'}">
               ${isCorrect ? '✅ ตอบถูกต้อง (+1 คะแนน)' : '❌ ตอบไม่ถูกต้อง (0 คะแนน)'}
             </div>
-            <div style="font-size: 0.88rem; color: #DDD;">
-              คำตอบของคุณ: <strong>${userAnsText}</strong>
-              ${!isCorrect ? `<br>คำตอบที่ถูกต้องคือ: <strong style="color:#00E676;">${correctAnsText}</strong>` : ''}
-            </div>
-            ${explanationBlock}
+            ${answerDetailHTML}
           </div>
         `;
       }).join('');
@@ -1059,13 +1076,13 @@ class GameApp {
       await window.teacherStore.fetchCloudStudentLogs();
     }
 
-    // 1. Render Quiz Summary Table
+    // 1. Render Quiz Summary Table (ลบคอลัมน์วันที่ทำล่าสุดออก)
     if (quizTbody) {
       const quizStats = window.teacherStore.getQuizSummaryStats();
       if (quizStats.length === 0) {
         quizTbody.innerHTML = `
           <tr>
-            <td colspan="7" style="text-align: center; color: #BBB; padding: 18px;">
+            <td colspan="6" style="text-align: center; color: #BBB; padding: 18px;">
               ยังไม่มีประวัติแบบทดสอบก่อน-หลังเรียนของนักเรียนในขณะนี้
             </td>
           </tr>
@@ -1081,20 +1098,19 @@ class GameApp {
               <td style="color: #00E676; font-weight: 600;">${s.postScore !== '-' ? s.postScore + ' / 5' : '-'}</td>
               <td style="color: ${impColor}; font-weight: 700;">${s.improvementText}</td>
               <td><span style="padding: 2px 8px; border-radius: 6px; background: rgba(0,230,118,0.15); color: #00E676; border: 1px solid #00E676; font-size: 0.8rem;">${s.result}</span></td>
-              <td style="font-size: 0.82rem; color: #BBB;">${s.lastDate}</td>
             </tr>
           `;
         }).join('');
       }
     }
 
-    // 2. Render AI Motion Game Summary Table
+    // 2. Render AI Motion Game Summary Table (ลบคอลัมน์วันที่เล่นล่าสุดออก)
     if (gameTbody) {
       const gameStats = window.teacherStore.getGameSummaryStats();
       if (gameStats.length === 0) {
         gameTbody.innerHTML = `
           <tr>
-            <td colspan="9" style="text-align: center; color: #BBB; padding: 18px;">
+            <td colspan="8" style="text-align: center; color: #BBB; padding: 18px;">
               ยังไม่มีประวัติสถิติการฝึกปฏิบัติด้วยเกม AI ของนักเรียนในขณะนี้
             </td>
           </tr>
@@ -1113,7 +1129,6 @@ class GameApp {
               <td style="color: #00E676; font-weight: 700;">${s.bestScore} คะแนน</td>
               <td style="color: ${impColor}; font-weight: 700;">${impText}</td>
               <td><span style="padding: 2px 8px; border-radius: 6px; background: rgba(0,230,118,0.15); color: #00E676; border: 1px solid #00E676; font-size: 0.8rem;">${s.result}</span></td>
-              <td style="font-size: 0.82rem; color: #BBB;">${s.lastDate}</td>
             </tr>
           `;
         }).join('');

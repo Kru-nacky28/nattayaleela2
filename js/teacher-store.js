@@ -365,10 +365,10 @@ class TeacherStore {
     }
 
     let csvContent = '\uFEFF';
-    csvContent += 'ชื่อ - นามสกุล นักเรียน,คะแนนก่อนเรียน (Pre-test /5),คะแนนหลังเรียน (Post-test /5),พัฒนาการทฤษฎี (%),ผลการประเมิน,วันที่ทำล่าสุด\n';
+    csvContent += 'ชื่อ - นามสกุล นักเรียน,คะแนนก่อนเรียน (Pre-test /5),คะแนนหลังเรียน (Post-test /5),พัฒนาการทฤษฎี (%),ผลการประเมิน\n';
 
     stats.forEach(s => {
-      csvContent += `"${s.name}","${s.preScore}","${s.postScore}","${s.improvementText}","${s.result}","${s.lastDate}"\n`;
+      csvContent += `"${s.name}","${s.preScore}","${s.postScore}","${s.improvementText}","${s.result}"\n`;
     });
 
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -390,11 +390,11 @@ class TeacherStore {
     }
 
     let csvContent = '\uFEFF';
-    csvContent += 'ชื่อ - นามสกุล นักเรียน,จำนวนครั้งที่เล่น,คะแนนครั้งแรก,คะแนนล่าสุด,คะแนนสูงสุด,พัฒนาการปฏิบัติ (%),ผลการประเมิน,วันที่เล่นล่าสุด\n';
+    csvContent += 'ชื่อ - นามสกุล นักเรียน,จำนวนครั้งที่เล่น,คะแนนครั้งแรก,คะแนนล่าสุด,คะแนนสูงสุด,พัฒนาการปฏิบัติ (%),ผลการประเมิน\n';
 
     stats.forEach(s => {
       const impText = s.gameImprovement >= 0 ? `+${s.gameImprovement}%` : `${s.gameImprovement}%`;
-      csvContent += `"${s.name}",${s.playCount},${s.firstScore},${s.latestScore},${s.bestScore},"${impText}","${s.result}","${s.lastDate}"\n`;
+      csvContent += `"${s.name}",${s.playCount},${s.firstScore},${s.latestScore},${s.bestScore},"${impText}","${s.result}"\n`;
     });
 
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
