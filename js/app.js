@@ -1211,163 +1211,24 @@ class GameApp {
 
   printAnalyticsReport() {
     try {
-      const reportElement = document.getElementById('print-area-report');
-      if (!reportElement) {
-        window.print();
-        return;
+      this.switchTeacherTab('analytics');
+
+      // โหลดฟอนต์ Sarabun เข้าระบบสำหรับการพิมพ์แบบ TH SarabunPSK
+      if (!document.getElementById('font-sarabun-print')) {
+        const fontLink = document.createElement('link');
+        fontLink.id = 'font-sarabun-print';
+        fontLink.rel = 'stylesheet';
+        fontLink.href = 'https://fonts.googleapis.com/css2?family=Sarabun:ital,wght@0,400;0,600;0,700;1,400&display=swap';
+        document.head.appendChild(fontLink);
       }
-
-      const reportHTML = reportElement.innerHTML;
-
-      // ลบ Iframe สั่งพิมพ์เดิมออกหากมีอยู่
-      let printFrame = document.getElementById('app-print-frame');
-      if (printFrame) {
-        printFrame.remove();
-      }
-
-      // สร้าง Iframe พิมพ์เอกสารขนานแบบ Off-Screen (กำหนดขนาด 1024x768 เพื่อให้ Google Chrome สั่งพิมพ์ได้ 100%)
-      printFrame = document.createElement('iframe');
-      printFrame.id = 'app-print-frame';
-      printFrame.style.position = 'fixed';
-      printFrame.style.left = '-9999px';
-      printFrame.style.top = '0';
-      printFrame.style.width = '1024px';
-      printFrame.style.height = '768px';
-      printFrame.style.border = '0';
-      printFrame.style.opacity = '0';
-      printFrame.style.pointerEvents = 'none';
-      document.body.appendChild(printFrame);
-
-      const frameDoc = printFrame.contentWindow.document;
-      frameDoc.open();
-      frameDoc.write(`
-        <!DOCTYPE html>
-        <html lang="th">
-        <head>
-          <meta charset="UTF-8">
-          <title>รายงานสถิติผลการเรียนรู้นาฏยศัพท์ส่วนมือ</title>
-          <link rel="preconnect" href="https://fonts.googleapis.com">
-          <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-          <link href="https://fonts.googleapis.com/css2?family=Sarabun:ital,wght@0,400;0,600;0,700;1,400&display=swap" rel="stylesheet">
-          <style>
-            @page {
-              size: A4 portrait;
-              margin: 10mm;
-            }
-            * {
-              box-sizing: border-box !important;
-            }
-            body {
-              font-family: 'TH SarabunPSK', 'TH Sarabun New', 'Sarabun', sans-serif !important;
-              color: #000 !important;
-              background: #FFF !important;
-              padding: 10px;
-              margin: 0;
-              font-size: 13pt;
-              line-height: 1.2;
-            }
-            h2 {
-              text-align: center;
-              font-size: 17pt !important;
-              font-weight: bold !important;
-              margin-bottom: 2px;
-              color: #000;
-            }
-            p.sub-head {
-              text-align: center;
-              font-size: 12pt !important;
-              color: #333;
-              margin-top: 0;
-              margin-bottom: 16px;
-            }
-            .btn-gold, button, input, label {
-              display: none !important;
-            }
-            .table-responsive-box {
-              overflow: visible !important;
-              width: 100% !important;
-              margin-bottom: 16px !important;
-            }
-            .analytics-table {
-              width: 100% !important;
-              max-width: 100% !important;
-              table-layout: fixed !important;
-              border-collapse: collapse !important;
-              background: #FFF !important;
-              margin: 0 !important;
-            }
-            .analytics-table th, .analytics-table td {
-              border: 1px solid #000 !important;
-              color: #000 !important;
-              background: #FFF !important;
-              padding: 4px 3px !important;
-              font-size: 11.5pt !important;
-              word-wrap: break-word !important;
-              word-break: break-word !important;
-              white-space: normal !important;
-              text-align: center !important;
-              vertical-align: middle !important;
-              writing-mode: horizontal-tb !important; /* บังคับข้อความแนวนอน ห้ามตั้งขึ้นเด็ดขาด */
-            }
-            .analytics-table th {
-              background: #F0F0F0 !important;
-              font-weight: bold !important;
-              font-size: 12pt !important;
-            }
-
-            /* กำหนดสัดส่วนคอลัมน์ตารางที่ 1 (Quiz Analytics - 6 คอลัมน์) */
-            .analytics-table:nth-of-type(1) th:nth-child(1), .analytics-table:nth-of-type(1) td:nth-child(1) { width: 6% !important; }
-            .analytics-table:nth-of-type(1) th:nth-child(2), .analytics-table:nth-of-type(1) td:nth-child(2) { width: 32% !important; text-align: left !important; }
-            .analytics-table:nth-of-type(1) th:nth-child(3), .analytics-table:nth-of-type(1) td:nth-child(3) { width: 14% !important; }
-            .analytics-table:nth-of-type(1) th:nth-child(4), .analytics-table:nth-of-type(1) td:nth-child(4) { width: 14% !important; }
-            .analytics-table:nth-of-type(1) th:nth-child(5), .analytics-table:nth-of-type(1) td:nth-child(5) { width: 16% !important; }
-            .analytics-table:nth-of-type(1) th:nth-child(6), .analytics-table:nth-of-type(1) td:nth-child(6) { width: 18% !important; }
-
-            /* กำหนดสัดส่วนคอลัมน์ตารางที่ 2 (Game Analytics - 8 คอลัมน์ ให้กว้างพอไม่ให้ข้อความตกขอบ) */
-            .analytics-table:nth-of-type(2) th:nth-child(1), .analytics-table:nth-of-type(2) td:nth-child(1) { width: 5% !important; }
-            .analytics-table:nth-of-type(2) th:nth-child(2), .analytics-table:nth-of-type(2) td:nth-child(2) { width: 25% !important; text-align: left !important; }
-            .analytics-table:nth-of-type(2) th:nth-child(3), .analytics-table:nth-of-type(2) td:nth-child(3) { width: 11% !important; }
-            .analytics-table:nth-of-type(2) th:nth-child(4), .analytics-table:nth-of-type(2) td:nth-child(4) { width: 11% !important; }
-            .analytics-table:nth-of-type(2) th:nth-child(5), .analytics-table:nth-of-type(2) td:nth-child(5) { width: 11% !important; }
-            .analytics-table:nth-of-type(2) th:nth-child(6), .analytics-table:nth-of-type(2) td:nth-child(6) { width: 11% !important; }
-            .analytics-table:nth-of-type(2) th:nth-child(7), .analytics-table:nth-of-type(2) td:nth-child(7) { width: 13% !important; }
-            .analytics-table:nth-of-type(2) th:nth-child(8), .analytics-table:nth-of-type(2) td:nth-child(8) { width: 13% !important; }
-
-            .badge-eval, .badge-badge {
-              background: transparent !important;
-              border: none !important;
-              color: #000 !important;
-              font-weight: bold !important;
-              padding: 0 !important;
-              font-size: 11.5pt !important;
-            }
-            h4 {
-              font-size: 13pt !important;
-              font-weight: bold !important;
-              margin-top: 14px !important;
-              margin-bottom: 6px !important;
-              border-bottom: 1.5px solid #000 !important;
-              padding-bottom: 3px !important;
-              color: #000 !important;
-            }
-          </style>
-        </head>
-        <body>
-          <h2>📊 รายงานสรุปผลการเรียนรู้นาฏยศัพท์ส่วนมือ (การตั้งวงและการจีบ)</h2>
-          <p class="sub-head">นวัตกรรมการเรียนรู้นาฏศิลป์ไทย - คุณครูนรีรัตน์ ธนาวัชรากุล | ชั้นมัธยมศึกษาปีที่ 1</p>
-          ${reportHTML}
-        </body>
-        </html>
-      `);
-      frameDoc.close();
 
       setTimeout(() => {
-        printFrame.contentWindow.focus();
-        printFrame.contentWindow.print();
-      }, 400);
+        window.print();
+      }, 150);
 
     } catch (e) {
       console.error('Print error:', e);
+      window.print();
     }
   }
 
