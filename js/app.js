@@ -1217,17 +1217,29 @@ class GameApp {
         return;
       }
 
-      // คัดลอกเนื้อหารายงานตารางสถิติ
       const reportHTML = reportElement.innerHTML;
 
-      // เปิดหน้าต่างพิมพ์แยกป้องกันไม่ให้หน้าจอหลักบนโน้ตบุ๊กหลุดโฟกัสหรือเด้งปิดตัวเอง 100%
-      const printWindow = window.open('', '_blank', 'width=900,height=900');
-      if (!printWindow) {
-        window.print();
-        return;
+      // ลบ Iframe สั่งพิมพ์เดิมออกหากมีอยู่
+      let printFrame = document.getElementById('app-print-frame');
+      if (printFrame) {
+        printFrame.remove();
       }
 
-      printWindow.document.write(`
+      // สร้าง Hidden Iframe เฉพาะกิจสำหรับการพิมพ์ ป้องกันไม่ให้เบราว์เซอร์บนโน้ตบุ๊กปิดป๊อปอัปหรือเด้งดับ 100%
+      printFrame = document.createElement('iframe');
+      printFrame.id = 'app-print-frame';
+      printFrame.style.position = 'fixed';
+      printFrame.style.right = '0';
+      printFrame.style.bottom = '0';
+      printFrame.style.width = '0';
+      printFrame.style.height = '0';
+      printFrame.style.border = '0';
+      printFrame.style.visibility = 'hidden';
+      document.body.appendChild(printFrame);
+
+      const frameDoc = printFrame.contentWindow.document;
+      frameDoc.open();
+      frameDoc.write(`
         <!DOCTYPE html>
         <html lang="th">
         <head>
@@ -1312,22 +1324,18 @@ class GameApp {
           <h2>📊 รายงานสรุปผลการเรียนรู้นาฏยศัพท์ส่วนมือ (การตั้งวงและการจีบ)</h2>
           <p class="sub-head">นวัตกรรมการเรียนรู้นาฏศิลป์ไทย - คุณครูนรีรัตน์ ธนาวัชรากุล | ชั้นมัธยมศึกษาปีที่ 1</p>
           ${reportHTML}
-          <script>
-            window.onload = function() {
-              setTimeout(function() {
-                window.focus();
-                window.print();
-                window.close();
-              }, 250);
-            };
-          </script>
         </body>
         </html>
       `);
-      printWindow.document.close();
+      frameDoc.close();
+
+      setTimeout(() => {
+        printFrame.contentWindow.focus();
+        printFrame.contentWindow.print();
+      }, 300);
+
     } catch (e) {
       console.error('Print error:', e);
-      window.print();
     }
   }
 
